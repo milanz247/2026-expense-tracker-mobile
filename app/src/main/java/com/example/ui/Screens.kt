@@ -35,7 +35,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.*
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
 import java.util.*
 
 // ==========================================
@@ -301,6 +303,20 @@ fun formatCents(cents: Long, currency: String = "USD"): String {
     val format = NumberFormat.getCurrencyInstance(Locale.US)
     format.currency = Currency.getInstance(currency)
     return format.format(cents / 100.0)
+}
+
+/** "Today"/"Yesterday" for a recent activity feed, falling back to the plain calendar date — dateIso is an RFC3339 string, so its first 10 chars are always the yyyy-MM-dd date. */
+fun relativeDayLabel(dateIso: String): String {
+    if (dateIso.length < 10) return dateIso
+    val datePart = dateIso.substring(0, 10)
+    val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+    val today = dayFormat.format(Date())
+    val yesterday = dayFormat.format(Date(System.currentTimeMillis() - 24L * 60 * 60 * 1000))
+    return when (datePart) {
+        today -> "Today"
+        yesterday -> "Yesterday"
+        else -> datePart
+    }
 }
 
 /** A real ring/donut chart for a category breakdown — each entry already carries its own hex color from the backend, so the chart is naturally multi-colored rather than one dominant accent tone. */
@@ -599,6 +615,93 @@ fun RegisterScreen(
 }
 
 // ==========================================
+// App Lock Screen (PIN + optional fingerprint)
+// ==========================================
+
+/**
+ * Gates re-entry into an already logged-in session behind a local PIN
+ * (and, if the user enabled it, a fingerprint prompt). Neither ever
+ * touches the backend — the PIN's hash and the fingerprint match both
+ * stay entirely on-device (see FinanceRepository's app-lock section).
+ */
+@Composable
+fun LockScreen(
+    viewModel: FinanceViewModel,
+    biometricAvailable: Boolean,
+    onUnlocked: () -> Unit,
+    onRequestBiometric: () -> Unit
+) {
+    var pin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        if (biometricAvailable) onRequestBiometric()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = AccentColor, modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Enter PIN to Continue", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(modifier = Modifier.height(20.dp))
+            OutlinedTextField(
+                value = pin,
+                onValueChange = {
+                    if (it.length <= 6 && it.all { c -> c.isDigit() }) {
+                        pin = it
+                        error = null
+                    }
+                },
+                label = { Text("PIN") },
+                singleLine = true,
+                isError = error != null,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier.width(200.dp)
+            )
+            if (error != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(error!!, color = DangerColor, fontSize = 12.sp)
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Button(
+                onClick = {
+                    scope.launch {
+                        if (viewModel.verifyPin(pin)) {
+                            onUnlocked()
+                        } else {
+                            error = "Incorrect PIN"
+                            pin = ""
+                        }
+                    }
+                },
+                enabled = pin.length >= 4,
+                colors = StandardButtonColors()
+            ) {
+                Text("Unlock")
+            }
+            if (biometricAvailable) {
+                Spacer(modifier = Modifier.height(12.dp))
+                TextButton(onClick = onRequestBiometric) {
+                    Icon(Icons.Default.Fingerprint, contentDescription = null, tint = AccentColor)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Use Fingerprint", color = AccentColor)
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
 // Dashboard Screen
 // ==========================================
 
@@ -776,7 +879,7 @@ fun DashboardScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = tx.category?.name ?: tx.type.uppercase(),
+                            text = "${tx.category?.name ?: tx.type.uppercase()} · ${relativeDayLabel(tx.date)}",
                             fontSize = 11.sp,
                             color = TextSecondary
                         )
@@ -796,6 +899,17 @@ fun DashboardScreen(
 // ==========================================
 // Wallets Screen
 // ==========================================
+
+private val WALLET_TYPES = listOf("bank", "cash", "credit_card", "investment")
+
+private fun walletTypeLabel(type: String) = type.replace("_", " ").replaceFirstChar { it.uppercase() }
+
+private fun walletTypeIcon(type: String): ImageVector = when (type) {
+    "bank" -> Icons.Default.AccountBalance
+    "credit_card" -> Icons.Default.CreditCard
+    "investment" -> Icons.AutoMirrored.Filled.TrendingUp
+    else -> Icons.Default.Payments // cash
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -870,29 +984,52 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
+                                    .padding(14.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(
-                                        text = acc.name,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 15.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = TextPrimary
-                                    )
-                                    Text(
-                                        text = acc.type.replace("_", " ").uppercase(),
-                                        fontSize = 10.sp,
-                                        color = TextSecondary
-                                    )
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(AccentMuted),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            walletTypeIcon(acc.type),
+                                            contentDescription = null,
+                                            tint = AccentColor,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = acc.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = TextPrimary
+                                        )
+                                        val subtitle = when {
+                                            !acc.accountNumber.isNullOrBlank() -> "${walletTypeLabel(acc.type)} · ${acc.accountNumber}"
+                                            else -> walletTypeLabel(acc.type)
+                                        }
+                                        Text(
+                                            text = subtitle,
+                                            fontSize = 10.sp,
+                                            color = TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 Text(
                                     text = formatCents(acc.balance, currency),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
+                                    fontSize = 16.sp,
                                     color = if (acc.balance < 0) DangerColor else AccentColor
                                 )
                             }
@@ -908,6 +1045,9 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
         var walletType by remember { mutableStateOf("bank") }
         var initialBalance by remember { mutableStateOf("") }
         var creditLimit by remember { mutableStateOf("0") }
+        var branchName by remember { mutableStateOf("") }
+        var accountNumber by remember { mutableStateOf("") }
+        var holderName by remember { mutableStateOf("") }
 
         StandardFormDialog(
             title = "New Wallet",
@@ -916,10 +1056,13 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
             confirmEnabled = walletName.isNotBlank(),
             onConfirm = {
                 viewModel.createAccount(
-                    walletName,
-                    walletType,
-                    initialBalance.toDoubleOrNull() ?: 0.0,
-                    creditLimit.toDoubleOrNull() ?: 0.0
+                    name = walletName,
+                    type = walletType,
+                    initialBalance = initialBalance.toDoubleOrNull() ?: 0.0,
+                    creditLimit = creditLimit.toDoubleOrNull() ?: 0.0,
+                    branchName = branchName,
+                    accountNumber = accountNumber,
+                    holderName = holderName
                 )
                 showAddWalletDialog = false
             }
@@ -932,19 +1075,15 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            Text("Account Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            DropdownSelector(
+                label = "Account Type",
+                items = WALLET_TYPES,
+                selected = walletType,
+                onSelect = { walletType = it },
+                itemLabel = { walletTypeLabel(it) },
+                itemIcon = { walletTypeIcon(it) },
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                listOf("bank", "cash", "credit_card", "investment").forEach { type ->
-                    ElevatedFilterChip(
-                        selected = walletType == type,
-                        onClick = { walletType = type },
-                        label = { Text(type.replace("_", " "), fontSize = 10.sp) }
-                    )
-                }
-            }
+            )
             OutlinedTextField(
                 value = initialBalance,
                 onValueChange = { initialBalance = it },
@@ -964,6 +1103,30 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+            if (walletType != "cash") {
+                Text("Account Details (optional)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                OutlinedTextField(
+                    value = holderName,
+                    onValueChange = { holderName = it },
+                    label = { Text("Account Holder Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = accountNumber,
+                    onValueChange = { accountNumber = it },
+                    label = { Text("Account Number") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = branchName,
+                    onValueChange = { branchName = it },
+                    label = { Text("Branch") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 
@@ -971,6 +1134,9 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
         val editing = accountToEdit!!
         var editName by remember(editing.id) { mutableStateOf(editing.name) }
         var editType by remember(editing.id) { mutableStateOf(editing.type) }
+        var editBranch by remember(editing.id) { mutableStateOf(editing.branchName ?: "") }
+        var editAccountNumber by remember(editing.id) { mutableStateOf(editing.accountNumber ?: "") }
+        var editHolder by remember(editing.id) { mutableStateOf(editing.holderName ?: "") }
 
         AlertDialog(
             onDismissRequest = { accountToEdit = null },
@@ -979,7 +1145,13 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
             textContentColor = TextSecondary,
             title = { Text("Edit Wallet", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 440.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
                     RequiredFieldLabel("Wallet Name", editName.isNotBlank())
                     OutlinedTextField(
                         value = editName,
@@ -987,25 +1159,52 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Account Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    DropdownSelector(
+                        label = "Account Type",
+                        items = WALLET_TYPES,
+                        selected = editType,
+                        onSelect = { editType = it },
+                        itemLabel = { walletTypeLabel(it) },
+                        itemIcon = { walletTypeIcon(it) },
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        listOf("bank", "cash", "credit_card", "investment").forEach { type ->
-                            ElevatedFilterChip(
-                                selected = editType == type,
-                                onClick = { editType = type },
-                                label = { Text(type.replace("_", " "), fontSize = 10.sp) }
-                            )
-                        }
+                    )
+                    if (editType != "cash") {
+                        Text("Account Details (optional)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                        OutlinedTextField(
+                            value = editHolder,
+                            onValueChange = { editHolder = it },
+                            label = { Text("Account Holder Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = editAccountNumber,
+                            onValueChange = { editAccountNumber = it },
+                            label = { Text("Account Number") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = editBranch,
+                            onValueChange = { editBranch = it },
+                            label = { Text("Branch") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.updateAccount(editing.id, editName, editType)
+                        viewModel.updateAccount(
+                            id = editing.id,
+                            name = editName,
+                            type = editType,
+                            branchName = editBranch,
+                            accountNumber = editAccountNumber,
+                            holderName = editHolder
+                        )
                         accountToEdit = null
                     },
                     enabled = editName.isNotBlank(),
@@ -1406,13 +1605,22 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column {
-                                    Text("Repayment Received", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(rep.date, fontSize = 11.sp, color = TextSecondary)
+                                    Text(
+                                        if (activeDebt.type == "lent") "Repayment Received" else "Repayment Paid",
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 14.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        if (rep.fee > 0) "${rep.date} · Fee: ${formatCents(rep.fee, currency)}" else rep.date,
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
                                 }
                                 Text(
                                     formatCents(rep.amount, currency),
                                     fontWeight = FontWeight.Bold,
-                                    color = SuccessColor
+                                    color = if (activeDebt.type == "lent") SuccessColor else DangerColor
                                 )
                             }
                         }
@@ -1422,6 +1630,54 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
             } else {
                 // List of Debts
                 Text("Debts Ledger", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val totalReceivable = debts.filter { it.type == "lent" && it.status != "settled" }.sumOf { it.remainingAmount }
+                val totalPayable = debts.filter { it.type == "borrowed" && it.status != "settled" }.sumOf { it.remainingAmount }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = SuccessColor, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Total Receivables", fontSize = 11.sp, color = TextSecondary)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                formatCents(totalReceivable, currency),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = SuccessColor
+                            )
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.AutoMirrored.Filled.TrendingDown, contentDescription = null, tint = DangerColor, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Total Payables", fontSize = 11.sp, color = TextSecondary)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                formatCents(totalPayable, currency),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = DangerColor
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (debts.isEmpty()) {
@@ -1560,6 +1816,7 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
 
     if (showRepayDialog && activeDebt != null) {
         var repayAmount by remember { mutableStateOf("") }
+        var repayFee by remember { mutableStateOf("0") }
         var selectedWalletId by remember { mutableStateOf<Long?>(accounts.firstOrNull()?.id) }
         val repayVal = repayAmount.toDoubleOrNull()
         val exceedsRemaining = repayVal != null && repayVal * 100 > activeDebt.remainingAmount
@@ -1575,7 +1832,7 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                 else -> null
             },
             onConfirm = {
-                viewModel.repayDebt(activeDebt.id, repayVal!!, selectedWalletId!!)
+                viewModel.repayDebt(activeDebt.id, repayVal!!, repayFee.toDoubleOrNull() ?: 0.0, selectedWalletId!!)
                 showRepayDialog = false
             }
         ) {
@@ -1592,6 +1849,14 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                 placeholder = { Text("0.00") },
                 singleLine = true,
                 isError = exceedsRemaining,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = repayFee,
+                onValueChange = { repayFee = it },
+                label = { Text("Fee (optional)") },
+                singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1756,6 +2021,42 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 Text("Shop Creditors (Tabs)", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
                 Spacer(modifier = Modifier.height(16.dp))
 
+                val totalOutstanding = creditors.sumOf { it.outstandingDebt }
+                if (creditors.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentMuted),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.LocalMall, contentDescription = null, tint = AccentColor, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Total Outstanding Across All Tabs", fontSize = 11.sp, color = TextSecondary)
+                                Text(
+                                    formatCents(totalOutstanding, currency),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = DangerColor
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 if (creditors.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("No shop creditor tabs logged.", color = TextSecondary)
@@ -1874,6 +2175,7 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
 
     if (showSettleDialog && activeCreditor != null) {
         var payAmount by remember { mutableStateOf("") }
+        var payFee by remember { mutableStateOf("0") }
         var selectedWalletId by remember { mutableStateOf<Long?>(accounts.firstOrNull()?.id) }
         val payVal = payAmount.toDoubleOrNull()
         val settleWalletsAvailable = accounts.isNotEmpty()
@@ -1893,7 +2195,7 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                     activeCreditor.id,
                     selectedWalletId!!,
                     payVal!!,
-                    0.0
+                    payFee.toDoubleOrNull() ?: 0.0
                 )
                 showSettleDialog = false
             }
@@ -1909,6 +2211,14 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 value = payAmount,
                 onValueChange = { payAmount = it },
                 placeholder = { Text("0.00") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = payFee,
+                onValueChange = { payFee = it },
+                label = { Text("Fee (optional)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
@@ -2195,6 +2505,8 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
             }
         }
 
+        AppLockCard(viewModel)
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = SurfaceColor)
@@ -2331,6 +2643,161 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
             Spacer(modifier = Modifier.width(8.dp))
             Text("Destroy Token & Terminate Session", color = Color.White)
         }
+    }
+}
+
+@Composable
+private fun AppLockCard(viewModel: FinanceViewModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val hasPinLock by viewModel.hasPinLock.collectAsState()
+    val biometricEnabled by viewModel.biometricEnabled.collectAsState()
+
+    val biometricAvailable = remember {
+        androidx.biometric.BiometricManager.from(context).canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+        ) == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
+    }
+
+    var showSetPinDialog by remember { mutableStateOf(false) }
+    var showRemovePinDialog by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = AccentColor)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("App Lock", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                    Text(
+                        "Local to this device only — never sent to the server",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            if (hasPinLock) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = { showSetPinDialog = true },
+                        modifier = Modifier.weight(1f),
+                        colors = StandardButtonColors()
+                    ) {
+                        Text("Change PIN", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { showRemovePinDialog = true },
+                        modifier = Modifier.weight(1f),
+                        colors = StandardButtonColors(danger = true)
+                    ) {
+                        Text("Remove PIN", fontSize = 12.sp)
+                    }
+                }
+                if (biometricAvailable) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Unlock with Fingerprint", fontSize = 13.sp, color = TextPrimary)
+                        Switch(
+                            checked = biometricEnabled,
+                            onCheckedChange = { viewModel.setBiometricEnabled(it) },
+                            colors = SwitchDefaults.colors(checkedTrackColor = AccentColor)
+                        )
+                    }
+                }
+            } else {
+                Button(
+                    onClick = { showSetPinDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = StandardButtonColors()
+                ) {
+                    Text("Set a PIN")
+                }
+            }
+        }
+    }
+
+    if (showSetPinDialog) {
+        var newPin by remember { mutableStateOf("") }
+        var confirmPin by remember { mutableStateOf("") }
+        val pinsMatch = newPin.isNotEmpty() && newPin == confirmPin
+        val pinValid = newPin.length in 4..6
+
+        StandardFormDialog(
+            title = if (hasPinLock) "Change PIN" else "Set a PIN",
+            onDismiss = { showSetPinDialog = false },
+            confirmLabel = "Save",
+            confirmEnabled = pinValid && pinsMatch,
+            helperText = when {
+                newPin.isNotEmpty() && !pinValid -> "PIN must be 4 to 6 digits."
+                confirmPin.isNotEmpty() && !pinsMatch -> "PINs don't match."
+                else -> null
+            },
+            onConfirm = {
+                scope.launch {
+                    viewModel.setPin(newPin)
+                    showSetPinDialog = false
+                }
+            }
+        ) {
+            OutlinedTextField(
+                value = newPin,
+                onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) newPin = it },
+                label = { Text("New PIN (4-6 digits)") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = confirmPin,
+                onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) confirmPin = it },
+                label = { Text("Confirm PIN") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    if (showRemovePinDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemovePinDialog = false },
+            containerColor = DialogSurfaceColor,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("Remove PIN?", fontWeight = FontWeight.Bold) },
+            text = { Text("The app will no longer be locked when you reopen it.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearPin()
+                        showRemovePinDialog = false
+                    },
+                    colors = StandardButtonColors(danger = true)
+                ) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemovePinDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
     }
 }
 

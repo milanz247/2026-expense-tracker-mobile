@@ -87,13 +87,19 @@ data class AccountRequest(
     @Json(name = "name") val name: String,
     @Json(name = "type") val type: String,
     @Json(name = "initial_balance") val initialBalance: Double,
-    @Json(name = "credit_limit") val creditLimit: Double
+    @Json(name = "credit_limit") val creditLimit: Double,
+    @Json(name = "branch_name") val branchName: String = "",
+    @Json(name = "account_number") val accountNumber: String = "",
+    @Json(name = "holder_name") val holderName: String = ""
 )
 
 @JsonClass(generateAdapter = true)
 data class AccountUpdateRequest(
     @Json(name = "name") val name: String,
-    @Json(name = "type") val type: String
+    @Json(name = "type") val type: String,
+    @Json(name = "branch_name") val branchName: String = "",
+    @Json(name = "account_number") val accountNumber: String = "",
+    @Json(name = "holder_name") val holderName: String = ""
 )
 
 @JsonClass(generateAdapter = true)
@@ -104,6 +110,9 @@ data class AccountResponse(
     @Json(name = "balance") val balance: Long, // in cents
     @Json(name = "credit_limit") val creditLimit: Long, // in cents
     @Json(name = "is_active") val isActive: Boolean,
+    @Json(name = "branch_name") val branchName: String? = null,
+    @Json(name = "account_number") val accountNumber: String? = null,
+    @Json(name = "holder_name") val holderName: String? = null,
     @Json(name = "created_at") val createdAt: String
 )
 
@@ -194,6 +203,7 @@ data class DebtResponse(
 @JsonClass(generateAdapter = true)
 data class RepaymentRequest(
     @Json(name = "repayment_amount") val repaymentAmount: Double,
+    @Json(name = "fee") val fee: Double = 0.0,
     @Json(name = "account_id") val accountId: Long,
     @Json(name = "date") val date: String
 )

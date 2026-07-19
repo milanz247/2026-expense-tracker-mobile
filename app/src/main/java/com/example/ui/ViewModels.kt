@@ -34,6 +34,26 @@ class FinanceViewModel(
         viewModelScope.launch { repository.setDarkTheme(enabled) }
     }
 
+    // --- App lock (PIN + biometric, local device setting) ---
+    val hasPinLock: StateFlow<Boolean> = repository.hasPinLockFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val biometricEnabled: StateFlow<Boolean> = repository.biometricEnabledFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setPin(pin: String) {
+        viewModelScope.launch { repository.setPin(pin) }
+    }
+
+    fun clearPin() {
+        viewModelScope.launch { repository.clearPin() }
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setBiometricEnabled(enabled) }
+    }
+
+    suspend fun verifyPin(pin: String): Boolean = repository.verifyPin(pin)
+
     private fun launchGuarded(block: suspend () -> Unit) {
         viewModelScope.launch {
             try {
@@ -91,13 +111,28 @@ class FinanceViewModel(
     // --- Accounts / Wallets ---
     val accounts: StateFlow<List<LocalAccount>> = repository.accountsFlow
 
-    fun createAccount(name: String, type: String, initialBalance: Double, creditLimit: Double) = launchGuarded {
-        repository.createAccount(name, type, initialBalance, creditLimit)
+    fun createAccount(
+        name: String,
+        type: String,
+        initialBalance: Double,
+        creditLimit: Double,
+        branchName: String = "",
+        accountNumber: String = "",
+        holderName: String = ""
+    ) = launchGuarded {
+        repository.createAccount(name, type, initialBalance, creditLimit, branchName, accountNumber, holderName)
         refreshReports()
     }
 
-    fun updateAccount(id: Long, name: String, type: String) = launchGuarded {
-        repository.updateAccount(id, name, type)
+    fun updateAccount(
+        id: Long,
+        name: String,
+        type: String,
+        branchName: String = "",
+        accountNumber: String = "",
+        holderName: String = ""
+    ) = launchGuarded {
+        repository.updateAccount(id, name, type, branchName, accountNumber, holderName)
     }
 
     fun deleteAccount(id: Long) = launchGuarded {
@@ -186,6 +221,7 @@ class FinanceViewModel(
                 debtId = debt.id,
                 accountId = tx.accountId ?: 0L,
                 amount = tx.amount,
+                fee = tx.fee,
                 date = tx.date
             )
         }
@@ -200,8 +236,8 @@ class FinanceViewModel(
         refreshReports()
     }
 
-    fun repayDebt(debtId: Long, amount: Double, accountId: Long) = launchGuarded {
-        repository.repayDebt(debtId, amount, accountId, repository.getCurrentIsoTimestamp())
+    fun repayDebt(debtId: Long, amount: Double, fee: Double, accountId: Long) = launchGuarded {
+        repository.repayDebt(debtId, amount, fee, accountId, repository.getCurrentIsoTimestamp())
         refreshReports()
     }
 

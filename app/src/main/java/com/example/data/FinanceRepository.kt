@@ -50,6 +50,8 @@ class FinanceRepository(private val context: Context) {
         val CURRENCY = stringPreferencesKey("currency")
         val TIMEZONE = stringPreferencesKey("timezone")
         val DARK_THEME = booleanPreferencesKey("dark_theme")
+        val PIN_HASH = stringPreferencesKey("pin_hash")
+        val BIOMETRIC_ENABLED = booleanPreferencesKey("biometric_enabled")
     }
 
     val darkThemeFlow: kotlinx.coroutines.flow.Flow<Boolean> =
@@ -57,6 +59,45 @@ class FinanceRepository(private val context: Context) {
 
     suspend fun setDarkTheme(enabled: Boolean) {
         context.sessionDataStore.edit { it[Keys.DARK_THEME] = enabled }
+    }
+
+    // ==========================================
+    // App lock (PIN + biometric) — purely a local device setting. The PIN
+    // is never sent to the backend: only its SHA-256 hash lives in
+    // DataStore, and biometric matching never leaves the OS's own
+    // BiometricPrompt/keystore. This gates re-entry into an already
+    // logged-in session, it isn't a second account credential.
+    // ==========================================
+
+    val hasPinLockFlow: kotlinx.coroutines.flow.Flow<Boolean> =
+        context.sessionDataStore.data.map { it[Keys.PIN_HASH] != null }
+
+    val biometricEnabledFlow: kotlinx.coroutines.flow.Flow<Boolean> =
+        context.sessionDataStore.data.map { it[Keys.BIOMETRIC_ENABLED] ?: false }
+
+    private fun sha256(value: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    suspend fun setPin(pin: String) {
+        context.sessionDataStore.edit { it[Keys.PIN_HASH] = sha256(pin) }
+    }
+
+    suspend fun clearPin() {
+        context.sessionDataStore.edit {
+            it.remove(Keys.PIN_HASH)
+            it.remove(Keys.BIOMETRIC_ENABLED)
+        }
+    }
+
+    suspend fun verifyPin(pin: String): Boolean {
+        val stored = context.sessionDataStore.data.first()[Keys.PIN_HASH] ?: return false
+        return stored == sha256(pin)
+    }
+
+    suspend fun setBiometricEnabled(enabled: Boolean) {
+        context.sessionDataStore.edit { it[Keys.BIOMETRIC_ENABLED] = enabled }
     }
 
     private val moshi = Moshi.Builder()
@@ -232,10 +273,15 @@ class FinanceRepository(private val context: Context) {
         authToken = null
         apiService = null
         context.sessionDataStore.edit { prefs ->
-            // Keep the theme preference — it's a device setting, not part of the session.
+            // Keep device-level settings — theme and app-lock are not part
+            // of the session, they persist across logins on this device.
             val darkTheme = prefs[Keys.DARK_THEME]
+            val pinHash = prefs[Keys.PIN_HASH]
+            val biometricEnabled = prefs[Keys.BIOMETRIC_ENABLED]
             prefs.clear()
             if (darkTheme != null) prefs[Keys.DARK_THEME] = darkTheme
+            if (pinHash != null) prefs[Keys.PIN_HASH] = pinHash
+            if (biometricEnabled != null) prefs[Keys.BIOMETRIC_ENABLED] = biometricEnabled
         }
         _userProfile.value = null
         _accounts.value = emptyList()
@@ -300,13 +346,51 @@ class FinanceRepository(private val context: Context) {
     // Wallets (Accounts)
     // ==========================================
 
-    suspend fun createAccount(name: String, type: String, initialBalance: Double, creditLimit: Double) {
-        call { it.createAccount(AccountRequest(name, type, initialBalance, creditLimit)) }
+    suspend fun createAccount(
+        name: String,
+        type: String,
+        initialBalance: Double,
+        creditLimit: Double,
+        branchName: String = "",
+        accountNumber: String = "",
+        holderName: String = ""
+    ) {
+        call {
+            it.createAccount(
+                AccountRequest(
+                    name = name,
+                    type = type,
+                    initialBalance = initialBalance,
+                    creditLimit = creditLimit,
+                    branchName = branchName,
+                    accountNumber = accountNumber,
+                    holderName = holderName
+                )
+            )
+        }
         loadAccounts()
     }
 
-    suspend fun updateAccount(id: Long, name: String, type: String) {
-        call { it.updateAccount(id, AccountUpdateRequest(name, type)) }
+    suspend fun updateAccount(
+        id: Long,
+        name: String,
+        type: String,
+        branchName: String = "",
+        accountNumber: String = "",
+        holderName: String = ""
+    ) {
+        call {
+            it.updateAccount(
+                id,
+                AccountUpdateRequest(
+                    name = name,
+                    type = type,
+                    branchName = branchName,
+                    accountNumber = accountNumber,
+                    holderName = holderName
+                )
+            )
+        }
         loadAccounts()
     }
 
@@ -380,8 +464,18 @@ class FinanceRepository(private val context: Context) {
         loadTransactions()
     }
 
-    suspend fun repayDebt(debtId: Long, amount: Double, accountId: Long, date: String) {
-        call { it.repayDebt(debtId, RepaymentRequest(amount, accountId, toRfc3339(date))) }
+    suspend fun repayDebt(debtId: Long, amount: Double, fee: Double, accountId: Long, date: String) {
+        call {
+            it.repayDebt(
+                debtId,
+                RepaymentRequest(
+                    repaymentAmount = amount,
+                    fee = fee,
+                    accountId = accountId,
+                    date = toRfc3339(date)
+                )
+            )
+        }
         loadDebts()
         loadAccounts()
         loadTransactions()
@@ -446,7 +540,9 @@ class FinanceRepository(private val context: Context) {
 
 private fun AccountResponse.toLocal() = LocalAccount(
     id = id, name = name, type = type, balance = balance,
-    creditLimit = creditLimit, isActive = isActive, createdAt = createdAt
+    creditLimit = creditLimit, isActive = isActive,
+    branchName = branchName, accountNumber = accountNumber, holderName = holderName,
+    createdAt = createdAt
 )
 
 private fun CategoryResponse.toLocal() = LocalCategory(

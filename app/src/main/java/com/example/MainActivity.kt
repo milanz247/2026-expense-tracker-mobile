@@ -3,10 +3,10 @@ package com.example
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,11 +24,33 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.example.data.FinanceRepository
 import com.example.ui.*
 import com.example.ui.theme.MyApplicationTheme
 
-class MainActivity : ComponentActivity() {
+/** Shows the OS fingerprint prompt; onSuccess fires only on a real biometric match — a cancel/error just leaves the PIN entry as the fallback. */
+private fun showBiometricPrompt(activity: FragmentActivity, onSuccess: () -> Unit) {
+    val executor = ContextCompat.getMainExecutor(activity)
+    val prompt = BiometricPrompt(
+        activity,
+        executor,
+        object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                onSuccess()
+            }
+        }
+    )
+    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+        .setTitle("Unlock Planetary Finance")
+        .setSubtitle("Use your fingerprint to continue")
+        .setNegativeButtonText("Use PIN instead")
+        .build()
+    prompt.authenticate(promptInfo)
+}
+
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +125,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     is AuthState.Authenticated -> {
+                        val hasPinLock by viewModel.hasPinLock.collectAsState()
+                        val biometricEnabled by viewModel.biometricEnabled.collectAsState()
+                        var isUnlocked by remember { mutableStateOf(false) }
+
+                        if (hasPinLock && !isUnlocked) {
+                            LockScreen(
+                                viewModel = viewModel,
+                                biometricAvailable = biometricEnabled,
+                                onUnlocked = { isUnlocked = true },
+                                onRequestBiometric = {
+                                    showBiometricPrompt(this@MainActivity) { isUnlocked = true }
+                                }
+                            )
+                        } else {
                         val showingSubScreen = isNavigatingToSettings || isNavigatingToCategories
                         Scaffold(
                             modifier = Modifier
@@ -247,6 +283,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }

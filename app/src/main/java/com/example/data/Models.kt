@@ -31,6 +31,9 @@ data class LocalAccount(
     val balance: Long, // cents
     val creditLimit: Long, // cents
     val isActive: Boolean = true,
+    val branchName: String? = null,
+    val accountNumber: String? = null,
+    val holderName: String? = null,
     val createdAt: String = ""
 )
 
@@ -74,6 +77,7 @@ data class LocalRepayment(
     val debtId: Long,
     val accountId: Long,
     val amount: Long, // cents
+    val fee: Long = 0L, // cents
     val date: String
 )
 
