@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Stylized Planet (Base Sphere) -->
+    <path
+        android:pathData="M54,26 A28,28 0,1,1 53.9,26 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="26"
+                android:startY="26"
+                android:endX="82"
+                android:endY="82"
+                android:type="linear">
+                <item android:color="#7CB342" android:offset="0.0" />
+                <item android:color="#386B1D" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Planetary Latitude/Longitude Grid Lines (For Space Aesthetic) -->
+    <path
+        android:strokeWidth="1.5"
+        android:strokeColor="#55D7E8CD"
+        android:pathData="M26,54 Q54,64 82,54 M30,40 Q54,48 78,40 M30,68 Q54,76 78,68 M54,26 Q44,54 54,82" />
+
+    <!-- Tilted Ring (Saturn Orbit Coin Ring) -->
+    <path
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M16,62 C10,54 26,38 54,38 C82,38 98,54 92,62 C86,70 70,82 42,82 C22,82 18,70 16,62 Z">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="16"
+                android:startY="38"
+                android:endX="92"
+                android:endY="82"
+                android:type="linear">
+                <item android:color="#FFD54F" android:offset="0.0" />
+                <item android:color="#FF8F00" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner Golden Coin Core inside Planet -->
+    <path
+        android:pathData="M54,41 A13,13 0,1,1 53.9,41 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="41"
+                android:startY="41"
+                android:endX="67"
+                android:endY="67"
+                android:type="linear">
+                <item android:color="#FFF9C4" android:offset="0.0" />
+                <item android:color="#FFC107" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Centered Custom Dollar Symbol ($) -->
+    <!-- Vertical line of $ -->
+    <path
+        android:strokeWidth="2.5"
+        android:strokeColor="#142C0A"
+        android:strokeLineCap="round"
+        android:pathData="M54,45 L54,63" />
+
+    <!-- S curves of $ -->
+    <path
+        android:strokeWidth="2.5"
+        android:strokeColor="#142C0A"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M59,48 C59,48 54,46 51,49 C48,52 54,54 54,54 C54,54 60,54 57,59 C54,62 49,60 49,60" />
+
+</vector>

@@ -1,0 +1,6 @@
+{
+  "name": "Planetary Finance",
+  "description": "Secure Personal Finance Management System featuring account ledgers, categories, debt registry, shop credit tabs, and CSV/PDF statements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
