@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 when (val state = authState) {
-                    is AuthState.Unauthenticated -> {
+                    is AuthState.Unauthenticated, is AuthState.Error -> {
                         if (currentScreen == "register") {
                             RegisterScreen(
                                 onRegisterSuccess = {
@@ -226,26 +226,6 @@ class MainActivity : ComponentActivity() {
                                         3 -> StoreTabsScreen(viewModel = viewModel)
                                         4 -> ReportsScreen(viewModel = viewModel)
                                     }
-                                }
-                            }
-                        }
-                    }
-                    is AuthState.Error -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF120A0C)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Oops, something went wrong:", color = Color(0xFFFF4655))
-                                Text(state.message, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Button(
-                                    onClick = { viewModel.logout() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                                ) {
-                                    Text("Reset & Try Again", color = Color.White)
                                 }
                             }
                         }

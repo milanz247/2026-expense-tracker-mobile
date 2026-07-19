@@ -35,6 +35,97 @@ import java.text.NumberFormat
 import java.util.*
 
 // ==========================================
+// Shared design tokens — every screen and dialog pulls from this single
+// palette so the whole app (including AlertDialogs, which Material3
+// would otherwise tint with its own auto-derived tonal surface) reads
+// as one consistent dark/red system instead of a patchwork of screens.
+// ==========================================
+
+val AppBg = Color(0xFF120A0C)
+val SurfaceColor = Color(0xFF1E1215)
+val DialogSurfaceColor = Color(0xFF241419)
+val TextPrimary = Color(0xFFF5EAEC)
+val TextSecondary = Color(0xFFB9A3A7)
+val AccentColor = Color(0xFFE0263B)
+val AccentMuted = Color(0xFF3A131A)
+val DangerColor = Color(0xFFFF4655)
+val SuccessColor = Color(0xFF34D399)
+val BorderColor = Color(0xFF2C1A1E)
+
+@Composable
+fun StandardButtonColors(danger: Boolean = false) = ButtonDefaults.buttonColors(
+    containerColor = if (danger) DangerColor else AccentColor,
+    contentColor = Color.White,
+    disabledContainerColor = AccentMuted,
+    disabledContentColor = TextSecondary.copy(alpha = 0.5f)
+)
+
+/**
+ * Every "add/edit" dialog in the app renders through this one wrapper so
+ * they all share the same dark surface, the same scroll-on-overflow
+ * behavior, and the same "Save button disables instead of silently
+ * doing nothing" affordance when a required field is missing.
+ */
+@Composable
+fun StandardFormDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    confirmLabel: String,
+    confirmEnabled: Boolean,
+    onConfirm: () -> Unit,
+    danger: Boolean = false,
+    helperText: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DialogSurfaceColor,
+        titleContentColor = TextPrimary,
+        textContentColor = TextSecondary,
+        title = { Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 440.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                content()
+                if (helperText != null) {
+                    Text(helperText, fontSize = 11.sp, color = DangerColor)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = confirmEnabled,
+                colors = StandardButtonColors(danger)
+            ) {
+                Text(confirmLabel, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextSecondary)
+            }
+        }
+    )
+}
+
+/** Label for a form field that highlights when it still needs a value. */
+@Composable
+fun RequiredFieldLabel(text: String, satisfied: Boolean) {
+    Text(
+        text = if (satisfied) text else "$text *",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = if (satisfied) TextSecondary else AccentColor
+    )
+}
+
+// ==========================================
 // Color & Icon Helpers for Jetpack Compose
 // ==========================================
 
@@ -570,68 +661,62 @@ fun DashboardScreen(
         var initialBalance by remember { mutableStateOf("") }
         var creditLimit by remember { mutableStateOf("0") }
 
-        AlertDialog(
-            onDismissRequest = { showAddWalletDialog = false },
-            title = { Text("Configure New Wallet", color = Color(0xFFF5EAEC)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = walletName,
-                        onValueChange = { walletName = it },
-                        label = { Text("Wallet Name") }
+        StandardFormDialog(
+            title = "New Wallet",
+            onDismiss = { showAddWalletDialog = false },
+            confirmLabel = "Save Wallet",
+            confirmEnabled = walletName.isNotBlank(),
+            onConfirm = {
+                viewModel.createAccount(
+                    walletName,
+                    walletType,
+                    initialBalance.toDoubleOrNull() ?: 0.0,
+                    creditLimit.toDoubleOrNull() ?: 0.0
+                )
+                showAddWalletDialog = false
+            }
+        ) {
+            RequiredFieldLabel("Wallet Name", walletName.isNotBlank())
+            OutlinedTextField(
+                value = walletName,
+                onValueChange = { walletName = it },
+                placeholder = { Text("e.g. Main Bank Account") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("Account Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                listOf("bank", "cash", "credit_card", "investment").forEach { type ->
+                    ElevatedFilterChip(
+                        selected = walletType == type,
+                        onClick = { walletType = type },
+                        label = { Text(type.replace("_", " "), fontSize = 10.sp) }
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        listOf("bank", "cash", "credit_card", "investment").forEach { type ->
-                            ElevatedFilterChip(
-                                selected = walletType == type,
-                                onClick = { walletType = type },
-                                label = { Text(type, fontSize = 10.sp) }
-                            )
-                        }
-                    }
-                    OutlinedTextField(
-                        value = initialBalance,
-                        onValueChange = { initialBalance = it },
-                        label = { Text("Initial Balance") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                    if (walletType == "credit_card") {
-                        OutlinedTextField(
-                            value = creditLimit,
-                            onValueChange = { creditLimit = it },
-                            label = { Text("Credit Limit") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (walletName.isNotBlank()) {
-                            viewModel.createAccount(
-                                walletName,
-                                walletType,
-                                initialBalance.toDoubleOrNull() ?: 0.0,
-                                creditLimit.toDoubleOrNull() ?: 0.0
-                            )
-                            showAddWalletDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Save Wallet", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddWalletDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
                 }
             }
-        )
+            OutlinedTextField(
+                value = initialBalance,
+                onValueChange = { initialBalance = it },
+                label = { Text("Initial Balance") },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (walletType == "credit_card") {
+                OutlinedTextField(
+                    value = creditLimit,
+                    onValueChange = { creditLimit = it },
+                    label = { Text("Credit Limit") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 
     if (accountToEdit != null) {
@@ -641,14 +726,20 @@ fun DashboardScreen(
 
         AlertDialog(
             onDismissRequest = { accountToEdit = null },
-            title = { Text("Edit Wallet", color = Color(0xFFF5EAEC)) },
+            containerColor = DialogSurfaceColor,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("Edit Wallet", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    RequiredFieldLabel("Wallet Name", editName.isNotBlank())
                     OutlinedTextField(
                         value = editName,
                         onValueChange = { editName = it },
-                        label = { Text("Wallet Name") }
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    Text("Account Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -657,7 +748,7 @@ fun DashboardScreen(
                             ElevatedFilterChip(
                                 selected = editType == type,
                                 onClick = { editType = type },
-                                label = { Text(type, fontSize = 10.sp) }
+                                label = { Text(type.replace("_", " "), fontSize = 10.sp) }
                             )
                         }
                     }
@@ -666,26 +757,25 @@ fun DashboardScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (editName.isNotBlank()) {
-                            viewModel.updateAccount(editing.id, editName, editType)
-                            accountToEdit = null
-                        }
+                        viewModel.updateAccount(editing.id, editName, editType)
+                        accountToEdit = null
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                    enabled = editName.isNotBlank(),
+                    colors = StandardButtonColors()
                 ) {
-                    Text("Save Changes", color = Color.White)
+                    Text("Save Changes")
                 }
             },
             dismissButton = {
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = {
                         viewModel.deleteAccount(editing.id)
                         accountToEdit = null
                     }) {
-                        Text("Archive Wallet", color = Color(0xFFFF4655))
+                        Text("Archive", color = DangerColor)
                     }
                     TextButton(onClick = { accountToEdit = null }) {
-                        Text("Cancel", color = Color(0xFFB9A3A7))
+                        Text("Cancel", color = TextSecondary)
                     }
                 }
             }
@@ -835,122 +925,139 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
         var selectedCatId by remember { mutableStateOf<Long?>(categories.firstOrNull()?.id) }
         var description by remember { mutableStateOf("") }
 
-        AlertDialog(
-            onDismissRequest = { showAddTxDialog = false },
-            title = { Text("Log Transaction") },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        listOf("income", "expense", "transfer").forEach { type ->
-                            ElevatedFilterChip(
-                                selected = txType == type,
-                                onClick = { 
-                                    txType = type
-                                    if (type == "transfer") {
-                                        selectedCatId = null
-                                    }
-                                },
-                                label = { Text(type) }
-                            )
-                        }
-                    }
+        val amountVal = amount.toDoubleOrNull()
+        val isTransfer = txType == "transfer"
+        val walletsAvailable = accounts.isNotEmpty()
+        val transferNeedsTwoWallets = isTransfer && accounts.size < 2
+        val confirmEnabled = walletsAvailable &&
+            amountVal != null && amountVal > 0.0 &&
+            selectedWalletId != null &&
+            (!isTransfer || (selectedDestWalletId != null && selectedDestWalletId != selectedWalletId))
 
-                    OutlinedTextField(
-                        value = amount,
-                        onValueChange = { amount = it },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-
-                    OutlinedTextField(
-                        value = fee,
-                        onValueChange = { fee = it },
-                        label = { Text("Fee") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-
-                    Text(if (txType == "transfer") "Source Account" else "Wallet Account Source")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(accounts) { acc ->
-                            ElevatedFilterChip(
-                                selected = selectedWalletId == acc.id,
-                                onClick = { selectedWalletId = acc.id },
-                                label = { Text(acc.name) }
-                            )
-                        }
-                    }
-
-                    if (txType == "transfer") {
-                        Text("Destination Account")
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(accounts) { acc ->
-                                ElevatedFilterChip(
-                                    selected = selectedDestWalletId == acc.id,
-                                    onClick = { selectedDestWalletId = acc.id },
-                                    label = { Text(acc.name) }
-                                )
-                            }
-                        }
-                    }
-
-                    if (txType != "transfer") {
-                        Text("Category")
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(categories.filter { it.type == txType }) { cat ->
-                                ElevatedFilterChip(
-                                    selected = selectedCatId == cat.id,
-                                    onClick = { selectedCatId = cat.id },
-                                    label = { Text(cat.name) }
-                                )
-                            }
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("Description Memo") }
-                    )
-                }
+        StandardFormDialog(
+            title = "Log Transaction",
+            onDismiss = { showAddTxDialog = false },
+            confirmLabel = "Add Entry",
+            confirmEnabled = confirmEnabled,
+            helperText = when {
+                !walletsAvailable -> "Create a wallet first (Overview tab) before logging a transaction."
+                transferNeedsTwoWallets -> "You need at least two wallets to record a transfer."
+                isTransfer && selectedDestWalletId == selectedWalletId && selectedWalletId != null ->
+                    "Source and destination wallets must be different."
+                amount.isNotBlank() && (amountVal == null || amountVal <= 0.0) -> "Enter a valid amount greater than 0."
+                else -> null
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amountVal = amount.toDoubleOrNull()
-                        if (amountVal != null && selectedWalletId != null) {
-                            val isTransfer = txType == "transfer"
-                            viewModel.createTransaction(
-                                type = txType,
-                                amount = amountVal,
-                                fee = fee.toDoubleOrNull() ?: 0.0,
-                                accountId = if (isTransfer) null else selectedWalletId,
-                                sourceAccountId = if (isTransfer) selectedWalletId else null,
-                                destinationAccountId = if (isTransfer) selectedDestWalletId else null,
-                                categoryId = if (isTransfer) null else selectedCatId,
-                                description = description,
-                                date = viewModel.getCurrentIsoTimestamp()
-                            )
-                            showAddTxDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Add Entry", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddTxDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
+            onConfirm = {
+                viewModel.createTransaction(
+                    type = txType,
+                    amount = amountVal!!,
+                    fee = fee.toDoubleOrNull() ?: 0.0,
+                    accountId = if (isTransfer) null else selectedWalletId,
+                    sourceAccountId = if (isTransfer) selectedWalletId else null,
+                    destinationAccountId = if (isTransfer) selectedDestWalletId else null,
+                    categoryId = if (isTransfer) null else selectedCatId,
+                    description = description,
+                    date = viewModel.getCurrentIsoTimestamp()
+                )
+                showAddTxDialog = false
+            }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf("income", "expense", "transfer").forEach { type ->
+                    ElevatedFilterChip(
+                        selected = txType == type,
+                        onClick = {
+                            txType = type
+                            if (type == "transfer") {
+                                selectedCatId = null
+                            }
+                        },
+                        label = { Text(type.replaceFirstChar { it.uppercase() }) }
+                    )
                 }
             }
-        )
+
+            RequiredFieldLabel("Amount", amountVal != null && amountVal > 0.0)
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = fee,
+                onValueChange = { fee = it },
+                label = { Text("Fee (optional)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (walletsAvailable) {
+                RequiredFieldLabel(
+                    if (isTransfer) "Source Account" else "Wallet",
+                    selectedWalletId != null
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(accounts) { acc ->
+                        ElevatedFilterChip(
+                            selected = selectedWalletId == acc.id,
+                            onClick = { selectedWalletId = acc.id },
+                            label = { Text(acc.name) }
+                        )
+                    }
+                }
+            } else {
+                Text("No wallets yet — add one from the Overview tab first.", fontSize = 12.sp, color = DangerColor)
+            }
+
+            if (isTransfer) {
+                RequiredFieldLabel("Destination Account", selectedDestWalletId != null && selectedDestWalletId != selectedWalletId)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(accounts) { acc ->
+                        ElevatedFilterChip(
+                            selected = selectedDestWalletId == acc.id,
+                            onClick = { selectedDestWalletId = acc.id },
+                            label = { Text(acc.name) }
+                        )
+                    }
+                }
+            }
+
+            if (!isTransfer) {
+                Text("Category (optional)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                val matchingCats = categories.filter { it.type == txType }
+                if (matchingCats.isEmpty()) {
+                    Text("No $txType categories yet — add one in Settings.", fontSize = 11.sp, color = TextSecondary)
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(matchingCats) { cat ->
+                            ElevatedFilterChip(
+                                selected = selectedCatId == cat.id,
+                                onClick = { selectedCatId = cat.id },
+                                label = { Text(cat.name) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description (optional)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
+
 }
 
 // ==========================================
@@ -1127,124 +1234,134 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
         var selectedWalletId by remember { mutableStateOf<Long?>(accounts.firstOrNull()?.id) }
         var dueDate by remember { mutableStateOf("") }
 
-        AlertDialog(
-            onDismissRequest = { showAddDebtDialog = false },
-            title = { Text("Log New Debt Balance") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = personName,
-                        onValueChange = { personName = it },
-                        label = { Text("Counterparty Name") }
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("lent", "borrowed").forEach { type ->
-                            ElevatedFilterChip(
-                                selected = debtType == type,
-                                onClick = { debtType = type },
-                                label = { Text(type) }
-                            )
-                        }
-                    }
-                    OutlinedTextField(
-                        value = totalAmount,
-                        onValueChange = { totalAmount = it },
-                        label = { Text("Amount Balance") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                    Text("Select Wallet Account")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accounts) { acc ->
-                            ElevatedFilterChip(
-                                selected = selectedWalletId == acc.id,
-                                onClick = { selectedWalletId = acc.id },
-                                label = { Text(acc.name) }
-                            )
-                        }
-                    }
-                    OutlinedTextField(
-                        value = dueDate,
-                        onValueChange = { dueDate = it },
-                        label = { Text("Due Date Target (YYYY-MM-DD)") }
-                    )
-                }
+        val debtAmount = totalAmount.toDoubleOrNull()
+        val debtWalletsAvailable = accounts.isNotEmpty()
+        val debtConfirmEnabled = personName.isNotBlank() && debtAmount != null && debtAmount > 0.0 && selectedWalletId != null
+
+        StandardFormDialog(
+            title = "Log New Debt",
+            onDismiss = { showAddDebtDialog = false },
+            confirmLabel = "Add Debt Record",
+            confirmEnabled = debtConfirmEnabled,
+            helperText = when {
+                !debtWalletsAvailable -> "Create a wallet first (Overview tab) before logging a debt."
+                totalAmount.isNotBlank() && (debtAmount == null || debtAmount <= 0.0) -> "Enter a valid amount greater than 0."
+                else -> null
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amount = totalAmount.toDoubleOrNull()
-                        if (personName.isNotBlank() && amount != null && selectedWalletId != null) {
-                            viewModel.createDebt(
-                                personName,
-                                debtType,
-                                amount,
-                                selectedWalletId!!,
-                                dueDate.ifEmpty { "2026-12-31" }
-                            )
-                            showAddDebtDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Add Debt Record", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDebtDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
-                }
+            onConfirm = {
+                viewModel.createDebt(
+                    personName,
+                    debtType,
+                    debtAmount!!,
+                    selectedWalletId!!,
+                    dueDate.ifEmpty { "2026-12-31" }
+                )
+                showAddDebtDialog = false
             }
-        )
+        ) {
+            RequiredFieldLabel("Person's Name", personName.isNotBlank())
+            OutlinedTextField(
+                value = personName,
+                onValueChange = { personName = it },
+                placeholder = { Text("Who's involved?") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("Direction", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ElevatedFilterChip(
+                    selected = debtType == "lent",
+                    onClick = { debtType = "lent" },
+                    label = { Text("I lent money") }
+                )
+                ElevatedFilterChip(
+                    selected = debtType == "borrowed",
+                    onClick = { debtType = "borrowed" },
+                    label = { Text("I borrowed money") }
+                )
+            }
+            RequiredFieldLabel("Amount", debtAmount != null && debtAmount > 0.0)
+            OutlinedTextField(
+                value = totalAmount,
+                onValueChange = { totalAmount = it },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (debtWalletsAvailable) {
+                RequiredFieldLabel("Wallet", selectedWalletId != null)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(accounts) { acc ->
+                        ElevatedFilterChip(
+                            selected = selectedWalletId == acc.id,
+                            onClick = { selectedWalletId = acc.id },
+                            label = { Text(acc.name) }
+                        )
+                    }
+                }
+            } else {
+                Text("No wallets yet — add one from the Overview tab first.", fontSize = 12.sp, color = DangerColor)
+            }
+            OutlinedTextField(
+                value = dueDate,
+                onValueChange = { dueDate = it },
+                label = { Text("Due Date (optional)") },
+                placeholder = { Text("YYYY-MM-DD") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 
     if (showRepayDialog && activeDebt != null) {
         var repayAmount by remember { mutableStateOf("") }
         var selectedWalletId by remember { mutableStateOf<Long?>(accounts.firstOrNull()?.id) }
+        val repayVal = repayAmount.toDoubleOrNull()
+        val exceedsRemaining = repayVal != null && repayVal * 100 > activeDebt.remainingAmount
 
-        AlertDialog(
-            onDismissRequest = { showRepayDialog = false },
-            title = { Text("Record Partial/Full Payment") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Remaining debt balance: ${formatCents(activeDebt.remainingAmount, currency)}")
-                    OutlinedTextField(
-                        value = repayAmount,
-                        onValueChange = { repayAmount = it },
-                        label = { Text("Repayment Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+        StandardFormDialog(
+            title = "Record Repayment",
+            onDismiss = { showRepayDialog = false },
+            confirmLabel = "Submit Repayment",
+            confirmEnabled = repayVal != null && repayVal > 0.0 && selectedWalletId != null,
+            helperText = when {
+                repayAmount.isNotBlank() && (repayVal == null || repayVal <= 0.0) -> "Enter a valid amount greater than 0."
+                exceedsRemaining -> "This is more than the remaining balance — the backend will reject it."
+                else -> null
+            },
+            onConfirm = {
+                viewModel.repayDebt(activeDebt.id, repayVal!!, selectedWalletId!!)
+                showRepayDialog = false
+            }
+        ) {
+            Text(
+                "Remaining balance: ${formatCents(activeDebt.remainingAmount, currency)}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+            RequiredFieldLabel("Repayment Amount", repayVal != null && repayVal > 0.0)
+            OutlinedTextField(
+                value = repayAmount,
+                onValueChange = { repayAmount = it },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                isError = exceedsRemaining,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            RequiredFieldLabel("Paid From Wallet", selectedWalletId != null)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(accounts) { acc ->
+                    ElevatedFilterChip(
+                        selected = selectedWalletId == acc.id,
+                        onClick = { selectedWalletId = acc.id },
+                        label = { Text(acc.name) }
                     )
-                    Text("Target Wallet Account Source")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accounts) { acc ->
-                            ElevatedFilterChip(
-                                selected = selectedWalletId == acc.id,
-                                onClick = { selectedWalletId = acc.id },
-                                label = { Text(acc.name) }
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amount = repayAmount.toDoubleOrNull()
-                        if (amount != null && selectedWalletId != null) {
-                            viewModel.repayDebt(activeDebt.id, amount, selectedWalletId!!)
-                            showRepayDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Submit Repayment", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRepayDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
                 }
             }
-        )
+        }
     }
 }
 
@@ -1434,151 +1551,140 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
     if (showAddCreditorDialog) {
         var credName by remember { mutableStateOf("") }
 
-        AlertDialog(
-            onDismissRequest = { showAddCreditorDialog = false },
-            title = { Text("Add Store Creditor Ledger") },
-            text = {
-                OutlinedTextField(
-                    value = credName,
-                    onValueChange = { credName = it },
-                    label = { Text("Store / Merchant Name") }
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (credName.isNotBlank()) {
-                            viewModel.createStoreCreditor(credName)
-                            showAddCreditorDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Save Merchant", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddCreditorDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
-                }
+        StandardFormDialog(
+            title = "Add Store Tab",
+            onDismiss = { showAddCreditorDialog = false },
+            confirmLabel = "Save Merchant",
+            confirmEnabled = credName.isNotBlank(),
+            onConfirm = {
+                viewModel.createStoreCreditor(credName)
+                showAddCreditorDialog = false
             }
-        )
+        ) {
+            RequiredFieldLabel("Store / Merchant Name", credName.isNotBlank())
+            OutlinedTextField(
+                value = credName,
+                onValueChange = { credName = it },
+                placeholder = { Text("e.g. Corner Grocery") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 
     if (showPurchaseDialog && activeCreditor != null) {
         var purchaseAmount by remember { mutableStateOf("") }
         var description by remember { mutableStateOf("") }
-        var selectedCatId by remember { mutableStateOf<Long?>(categories.firstOrNull()?.id) }
+        var selectedCatId by remember { mutableStateOf<Long?>(categories.firstOrNull { it.type == "expense" }?.id) }
+        val purchaseVal = purchaseAmount.toDoubleOrNull()
+        val expenseCats = categories.filter { it.type == "expense" }
 
-        AlertDialog(
-            onDismissRequest = { showPurchaseDialog = false },
-            title = { Text("Record Tab Credit Purchase") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = purchaseAmount,
-                        onValueChange = { purchaseAmount = it },
-                        label = { Text("Amount") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("Item Description") }
-                    )
-                    Text("Select Expense Category")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(categories.filter { it.type == "expense" }) { cat ->
-                            ElevatedFilterChip(
-                                selected = selectedCatId == cat.id,
-                                onClick = { selectedCatId = cat.id },
-                                label = { Text(cat.name) }
-                            )
-                        }
-                    }
-                }
+        StandardFormDialog(
+            title = "Record Tab Purchase",
+            onDismiss = { showPurchaseDialog = false },
+            confirmLabel = "Confirm Purchase",
+            confirmEnabled = purchaseVal != null && purchaseVal > 0.0 && selectedCatId != null,
+            helperText = when {
+                expenseCats.isEmpty() -> "No expense categories yet — add one in Settings."
+                purchaseAmount.isNotBlank() && (purchaseVal == null || purchaseVal <= 0.0) -> "Enter a valid amount greater than 0."
+                else -> null
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amount = purchaseAmount.toDoubleOrNull()
-                        if (amount != null && selectedCatId != null) {
-                            viewModel.createPurchase(
-                                activeCreditor.id,
-                                amount,
-                                0.0,
-                                selectedCatId!!,
-                                description
-                            )
-                            showPurchaseDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Confirm Purchase", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPurchaseDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
+            onConfirm = {
+                viewModel.createPurchase(
+                    activeCreditor.id,
+                    purchaseVal!!,
+                    0.0,
+                    selectedCatId!!,
+                    description
+                )
+                showPurchaseDialog = false
+            }
+        ) {
+            RequiredFieldLabel("Amount", purchaseVal != null && purchaseVal > 0.0)
+            OutlinedTextField(
+                value = purchaseAmount,
+                onValueChange = { purchaseAmount = it },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Item Description (optional)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            RequiredFieldLabel("Expense Category", selectedCatId != null)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(expenseCats) { cat ->
+                    ElevatedFilterChip(
+                        selected = selectedCatId == cat.id,
+                        onClick = { selectedCatId = cat.id },
+                        label = { Text(cat.name) }
+                    )
                 }
             }
-        )
+        }
     }
 
     if (showSettleDialog && activeCreditor != null) {
         var payAmount by remember { mutableStateOf("") }
         var selectedWalletId by remember { mutableStateOf<Long?>(accounts.firstOrNull()?.id) }
+        val payVal = payAmount.toDoubleOrNull()
+        val settleWalletsAvailable = accounts.isNotEmpty()
 
-        AlertDialog(
-            onDismissRequest = { showSettleDialog = false },
-            title = { Text("Settle Tab Payment") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Outstanding Tab Debt: ${formatCents(activeCreditor.outstandingDebt, currency)}")
-                    OutlinedTextField(
-                        value = payAmount,
-                        onValueChange = { payAmount = it },
-                        label = { Text("Payment Amount Paid") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-                    Text("Select Source Account Source")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(accounts) { acc ->
-                            ElevatedFilterChip(
-                                selected = selectedWalletId == acc.id,
-                                onClick = { selectedWalletId = acc.id },
-                                label = { Text(acc.name) }
-                            )
-                        }
+        StandardFormDialog(
+            title = "Settle Tab Payment",
+            onDismiss = { showSettleDialog = false },
+            confirmLabel = "Submit Settlement",
+            confirmEnabled = payVal != null && payVal > 0.0 && selectedWalletId != null,
+            helperText = when {
+                !settleWalletsAvailable -> "Create a wallet first (Overview tab) before settling a tab."
+                payAmount.isNotBlank() && (payVal == null || payVal <= 0.0) -> "Enter a valid amount greater than 0."
+                else -> null
+            },
+            onConfirm = {
+                viewModel.createSettlement(
+                    activeCreditor.id,
+                    selectedWalletId!!,
+                    payVal!!,
+                    0.0
+                )
+                showSettleDialog = false
+            }
+        ) {
+            Text(
+                "Outstanding tab debt: ${formatCents(activeCreditor.outstandingDebt, currency)}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+            RequiredFieldLabel("Amount Paid", payVal != null && payVal > 0.0)
+            OutlinedTextField(
+                value = payAmount,
+                onValueChange = { payAmount = it },
+                placeholder = { Text("0.00") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (settleWalletsAvailable) {
+                RequiredFieldLabel("Paid From Wallet", selectedWalletId != null)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(accounts) { acc ->
+                        ElevatedFilterChip(
+                            selected = selectedWalletId == acc.id,
+                            onClick = { selectedWalletId = acc.id },
+                            label = { Text(acc.name) }
+                        )
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amount = payAmount.toDoubleOrNull()
-                        if (amount != null && selectedWalletId != null) {
-                            viewModel.createSettlement(
-                                activeCreditor.id,
-                                selectedWalletId!!,
-                                amount,
-                                0.0
-                            )
-                            showSettleDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Submit Settlement", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettleDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
-                }
+            } else {
+                Text("No wallets yet — add one from the Overview tab first.", fontSize = 12.sp, color = DangerColor)
             }
-        )
+        }
     }
 }
 
@@ -1980,80 +2086,71 @@ private fun CategoryManagementCard(viewModel: FinanceViewModel) {
         var catColor by remember { mutableStateOf(presetColors.first()) }
         var catIcon by remember { mutableStateOf(presetIcons.first()) }
 
-        AlertDialog(
-            onDismissRequest = { showAddCategoryDialog = false },
-            title = { Text("Add Category") },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    OutlinedTextField(
-                        value = catName,
-                        onValueChange = { catName = it },
-                        label = { Text("Category Name") }
+        StandardFormDialog(
+            title = "Add Category",
+            onDismiss = { showAddCategoryDialog = false },
+            confirmLabel = "Save Category",
+            confirmEnabled = catName.isNotBlank(),
+            onConfirm = {
+                viewModel.createCategory(catName, catType, catColor, catIcon)
+                showAddCategoryDialog = false
+            }
+        ) {
+            RequiredFieldLabel("Category Name", catName.isNotBlank())
+            OutlinedTextField(
+                value = catName,
+                onValueChange = { catName = it },
+                placeholder = { Text("e.g. Groceries") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text("Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("income", "expense").forEach { type ->
+                    ElevatedFilterChip(
+                        selected = catType == type,
+                        onClick = { catType = type },
+                        label = { Text(type.replaceFirstChar { it.uppercase() }) }
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("income", "expense").forEach { type ->
-                            ElevatedFilterChip(
-                                selected = catType == type,
-                                onClick = { catType = type },
-                                label = { Text(type) }
-                            )
-                        }
-                    }
-                    Text("Color", fontSize = 12.sp, color = Color(0xFFB9A3A7))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(presetColors) { c ->
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(getColorForName(c))
-                                    .clickable { catColor = c },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (catColor == c) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        }
-                    }
-                    Text("Icon", fontSize = 12.sp, color = Color(0xFFB9A3A7))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(presetIcons) { iconName ->
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(if (catIcon == iconName) Color(0xFFE0263B) else Color(0xFF2C1A1E))
-                                    .clickable { catIcon = iconName },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(getIconForName(iconName), contentDescription = iconName, tint = Color.White, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (catName.isNotBlank()) {
-                            viewModel.createCategory(catName, catType, catColor, catIcon)
-                            showAddCategoryDialog = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
-                ) {
-                    Text("Save Category", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddCategoryDialog = false }) {
-                    Text("Dismiss", color = Color(0xFFB9A3A7))
                 }
             }
-        )
+            Text("Color", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(presetColors) { c ->
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(getColorForName(c))
+                            .border(
+                                width = if (catColor == c) 2.dp else 0.dp,
+                                color = TextPrimary,
+                                shape = CircleShape
+                            )
+                            .clickable { catColor = c },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (catColor == c) {
+                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+            Text("Icon", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(presetIcons) { iconName ->
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (catIcon == iconName) AccentColor else BorderColor)
+                            .clickable { catIcon = iconName },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(getIconForName(iconName), contentDescription = iconName, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
     }
 }
