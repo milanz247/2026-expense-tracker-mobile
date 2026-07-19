@@ -1,21 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Expense Tracker — Mobile
 
-# Run and deploy your AI Studio app
+Native Android client for a personal finance app, built in Kotlin with Jetpack Compose.
 
-This contains everything you need to run your app locally.
+Part of a three-repo project:
+- **expense-tracker-mobile** (this repo)
+- [expense-tracker-backend](https://github.com/milanz247/2026-expense-tracker-backend) — Go REST API
+- [expense-tracker-frontend](https://github.com/milanz247/2026-expense-tracker-frontend) — Next.js web client
 
-View your app in AI Studio: https://ai.studio/apps/ecd73860-322a-4ddb-9fbd-f7d5ce640ef6
+## Features
 
-## Run Locally
+- JWT authentication against the backend API (`AuthInterceptor`)
+- Session persistence via Jetpack DataStore
+- Compose Navigation between screens
+- Built-in Gemini AI helper for financial Q&A on top of your own data
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+## Stack
 
+Kotlin · Jetpack Compose · Retrofit/OkHttp networking · DataStore · Gemini API
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+## Getting started
+
+**Prerequisites:** [Android Studio](https://developer.android.com/studio)
+
+1. Open the project in Android Studio and let it sync Gradle
+2. Copy `.env.example` to `.env` and set `GEMINI_API_KEY`
+3. Point the network client at a running [expense-tracker-backend](https://github.com/milanz247/2026-expense-tracker-backend) instance
+4. Run on an emulator or physical device
