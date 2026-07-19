@@ -7,4 +7,9 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Matches ui/theme/Color.kt's LightAppColors.background — the OS splash screen is drawn
+         before Compose (and this app's DataStore-backed theme preference) can run, so it can only
+         follow the system day/night qualifier, not an in-app Light/Dark override. -->
+    <color name="splash_background">#FAFAFC</color>
 </resources>

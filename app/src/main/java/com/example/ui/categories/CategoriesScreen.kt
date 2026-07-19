@@ -28,14 +28,17 @@ import com.example.network.CATEGORY_COLORS
 import com.example.network.CATEGORY_ICONS
 import com.example.network.CATEGORY_TYPE_EXPENSE
 import com.example.network.CATEGORY_TYPE_INCOME
-import com.example.network.CategoryResponse
 import com.example.network.categoryColorHex
+import com.example.ui.common.AppFormSheet
+import com.example.ui.common.AppListRow
 import com.example.ui.common.EmptyState
 import com.example.ui.common.ErrorBanner
 import com.example.ui.common.FullScreenLoader
+import com.example.ui.common.iconForCategory
 import com.example.ui.common.parseHexColor
 import com.example.ui.theme.AppColors
 import com.example.ui.theme.LocalAppColors
+import com.example.ui.theme.Spacing
 
 private val fieldColors: @Composable (AppColors) -> TextFieldColors = { colors ->
     OutlinedTextFieldDefaults.colors(
@@ -46,6 +49,7 @@ private val fieldColors: @Composable (AppColors) -> TextFieldColors = { colors -
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriesScreen(
     viewModel: CategoriesViewModel,
@@ -61,54 +65,118 @@ fun CategoriesScreen(
     val pendingDelete by viewModel.categoryPendingDelete.collectAsState()
 
     val visibleCategories = remember(categories, selectedType) { categories.filter { it.type == selectedType } }
+    val typeOptions = listOf(CATEGORY_TYPE_EXPENSE, CATEGORY_TYPE_INCOME)
 
-    Box(modifier = modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
-        ) {
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = colors.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Categories", fontWeight = FontWeight.Bold, color = colors.onBackground) },
+                navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = colors.onBackground)
                     }
-                    Text(text = "Categories", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { viewModel.openAddForm() }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add category", tint = colors.accent)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background)
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                text = { Text("Add Category") },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                onClick = { viewModel.openAddForm() },
+                containerColor = colors.accent,
+                contentColor = colors.onAccent
+            )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding).windowInsetsPadding(WindowInsets.safeDrawing)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.xl),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                contentPadding = PaddingValues(top = Spacing.lg, bottom = 96.dp)
+            ) {
+                item {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        typeOptions.forEachIndexed { index, option ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = typeOptions.size),
+                                onClick = { viewModel.selectType(option) },
+                                selected = selectedType == option,
+                                colors = SegmentedButtonDefaults.colors(
+                                    activeContainerColor = colors.accent,
+                                    activeContentColor = colors.onAccent,
+                                    inactiveContainerColor = colors.surfaceVariant,
+                                    inactiveContentColor = colors.textSecondary
+                                )
+                            ) { Text(option.replaceFirstChar { it.uppercase() }) }
+                        }
                     }
                 }
-            }
 
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TypeChip("Expense", selectedType == CATEGORY_TYPE_EXPENSE) { viewModel.selectType(CATEGORY_TYPE_EXPENSE) }
-                    TypeChip("Income", selectedType == CATEGORY_TYPE_INCOME) { viewModel.selectType(CATEGORY_TYPE_INCOME) }
+                if (errorMessage != null) {
+                    item { ErrorBanner(errorMessage!!) }
                 }
-            }
 
-            if (errorMessage != null) {
-                item { ErrorBanner(errorMessage!!) }
-            }
-
-            if (isLoading && categories.isEmpty()) {
-                item { FullScreenLoader(modifier = Modifier.fillMaxWidth().height(200.dp)) }
-            } else if (visibleCategories.isEmpty()) {
-                item { EmptyState("No categories yet.") }
-            } else {
-                items(visibleCategories, key = { it.id }) { category ->
-                    CategoryRow(
-                        category = category,
-                        onEdit = { viewModel.openEditForm(category) },
-                        onDelete = { viewModel.requestDelete(category) }
-                    )
+                if (isLoading && categories.isEmpty()) {
+                    item { FullScreenLoader(modifier = Modifier.fillMaxWidth().height(200.dp)) }
+                } else if (visibleCategories.isEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                            EmptyState("No categories yet.")
+                            Button(
+                                onClick = { viewModel.openAddForm() },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.onAccent),
+                                shape = MaterialTheme.shapes.medium,
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add Category")
+                            }
+                        }
+                    }
+                } else {
+                    items(visibleCategories, key = { it.id }) { category ->
+                        AppListRow(
+                            leadingIcon = iconForCategory(category.icon),
+                            leadingTint = parseHexColor(categoryColorHex(category.color)),
+                            modifier = Modifier.animateItem(),
+                            trailing = {
+                                if (!category.isSystem) {
+                                    var menuExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        IconButton(onClick = { menuExpanded = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "Category options", tint = colors.textMuted)
+                                        }
+                                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, containerColor = colors.surfaceVariant) {
+                                            DropdownMenuItem(text = { Text("Edit", color = colors.onBackground) }, onClick = { menuExpanded = false; viewModel.openEditForm(category) })
+                                            DropdownMenuItem(text = { Text("Delete", color = colors.error) }, onClick = { menuExpanded = false; viewModel.requestDelete(category) })
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(
+                                text = category.name,
+                                fontSize = 14.sp,
+                                color = colors.onBackground,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (category.isSystem) {
+                                Text(text = "System", fontSize = 10.sp, color = colors.textMuted)
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
     if (showForm) {
-        CategoryFormDialog(viewModel)
+        CategoryFormSheet(viewModel)
     }
 
     pendingDelete?.let { category ->
@@ -125,72 +193,9 @@ fun CategoriesScreen(
     }
 }
 
-@Composable
-private fun TypeChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (selected) colors.accent else colors.surfaceVariant)
-            .border(1.dp, if (selected) Color.Transparent else colors.outline, RoundedCornerShape(50))
-            .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 8.dp)
-    ) {
-        Text(text = label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (selected) colors.onAccent else colors.textSecondary)
-    }
-}
-
-@Composable
-private fun CategoryRow(category: CategoryResponse, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val colors = LocalAppColors.current
-    var menuExpanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.outline, RoundedCornerShape(16.dp))
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(parseHexColor(categoryColorHex(category.color)).copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = com.example.ui.common.iconForCategory(category.icon),
-                contentDescription = null,
-                tint = parseHexColor(categoryColorHex(category.color)),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = category.name, fontSize = 14.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (category.isSystem) {
-                Text(text = "System", fontSize = 10.sp, color = colors.textMuted)
-            }
-        }
-        if (!category.isSystem) {
-            Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Category options", tint = colors.textMuted)
-                }
-                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, containerColor = colors.surfaceVariant) {
-                    DropdownMenuItem(text = { Text("Edit", color = colors.onBackground) }, onClick = { menuExpanded = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Delete", color = colors.error) }, onClick = { menuExpanded = false; onDelete() })
-                }
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CategoryFormDialog(viewModel: CategoriesViewModel) {
+private fun CategoryFormSheet(viewModel: CategoriesViewModel) {
     val colors = LocalAppColors.current
     val name by viewModel.formName.collectAsState()
     val type by viewModel.formType.collectAsState()
@@ -201,83 +206,73 @@ private fun CategoryFormDialog(viewModel: CategoriesViewModel) {
     val editingId by viewModel.editingCategoryId.collectAsState()
     val isCreate = editingId == null
 
-    AlertDialog(
-        onDismissRequest = { if (!isSubmitting) viewModel.dismissForm() },
-        containerColor = colors.surface,
-        titleContentColor = colors.onBackground,
-        textContentColor = colors.textSecondary,
-        title = { Text(if (isCreate) "Add Category ($type)" else "Edit Category") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = viewModel::onNameChanged,
-                    label = { Text("Name") },
-                    singleLine = true,
-                    colors = fieldColors(colors),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
+    AppFormSheet(
+        onDismiss = { viewModel.dismissForm() },
+        title = if (isCreate) "Add Category ($type)" else "Edit Category",
+        confirmLabel = if (isCreate) "Create" else "Save",
+        onConfirm = { viewModel.submitForm() },
+        isSubmitting = isSubmitting,
+        errorMessage = formError
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = viewModel::onNameChanged,
+            label = { Text("Name") },
+            singleLine = true,
+            colors = fieldColors(colors),
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth()
+        )
 
-                Text(text = "Color", fontSize = 12.sp, color = colors.textMuted)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(CATEGORY_COLORS) { colorOption ->
-                        val hex = categoryColorHex(colorOption)
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(parseHexColor(hex))
-                                .border(2.dp, if (color == colorOption) colors.onBackground else Color.Transparent, CircleShape)
-                                .clickable { viewModel.onColorSelected(colorOption) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (color == colorOption) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(16.dp))
-                            }
+        Text(text = "Color", fontSize = 12.sp, color = colors.textMuted)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(CATEGORY_COLORS) { colorOption ->
+                val hex = categoryColorHex(colorOption)
+                Box(
+                    modifier = Modifier.size(44.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(parseHexColor(hex))
+                            .border(2.dp, if (color == colorOption) colors.onBackground else Color.Transparent, CircleShape)
+                            .clickable { viewModel.onColorSelected(colorOption) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (color == colorOption) {
+                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = colors.onBackground, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
-
-                Text(text = "Icon", fontSize = 12.sp, color = colors.textMuted)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(CATEGORY_ICONS) { iconOption ->
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (icon == iconOption) colors.accent else colors.surfaceVariant)
-                                .clickable { viewModel.onIconSelected(iconOption) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = com.example.ui.common.iconForCategory(iconOption),
-                                contentDescription = iconOption,
-                                tint = if (icon == iconOption) colors.onAccent else colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-
-                if (formError != null) {
-                    Text(text = formError!!, color = colors.error, fontSize = 12.sp)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { viewModel.submitForm() }, enabled = !isSubmitting) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = colors.accent)
-                } else {
-                    Text(if (isCreate) "Create" else "Save", color = colors.accent)
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { viewModel.dismissForm() }, enabled = !isSubmitting) {
-                Text("Cancel", color = colors.textMuted)
             }
         }
-    )
+
+        Text(text = "Icon", fontSize = 12.sp, color = colors.textMuted)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(CATEGORY_ICONS) { iconOption ->
+                Box(
+                    modifier = Modifier.size(44.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (icon == iconOption) colors.accent else colors.surfaceVariant)
+                            .clickable { viewModel.onIconSelected(iconOption) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = iconForCategory(iconOption),
+                            contentDescription = iconOption,
+                            tint = if (icon == iconOption) colors.onAccent else colors.textSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

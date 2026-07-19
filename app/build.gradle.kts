@@ -22,9 +22,12 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    // Point this at your backend's LAN IP to run against a physical device
-    // (10.0.2.2 is only reachable from the Android emulator).
-    buildConfigField("String", "API_BASE_URL", "\"http://10.197.154.241:8080/api/v1/\"")
+    // Production Go backend (backend/), deployed on Railway.
+    buildConfigField(
+        "String",
+        "API_BASE_URL",
+        "\"https://2026-expense-tracker-backend-production.up.railway.app/api/v1/\""
+    )
   }
 
   signingConfigs {
@@ -91,6 +94,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.ui.text.google.fonts)
   implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.core.splashscreen)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)

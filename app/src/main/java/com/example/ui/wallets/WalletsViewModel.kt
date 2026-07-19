@@ -11,8 +11,11 @@ import com.example.network.CreateAccountRequest
 import com.example.network.UpdateAccountRequest
 import com.example.network.requireSuccess
 import com.example.network.toUserMessage
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
@@ -60,6 +63,10 @@ class WalletsViewModel(
 
     private val _accountPendingArchive = MutableStateFlow<AccountResponse?>(null)
     val accountPendingArchive: StateFlow<AccountResponse?> = _accountPendingArchive.asStateFlow()
+
+    /** UI-only event (like [com.example.ui.auth.AuthViewModel.AuthEvent]) — carries a message for a one-shot Snackbar, nothing business-logic-bearing. */
+    private val _snackbarMessage = MutableSharedFlow<String>()
+    val snackbarMessage: SharedFlow<String> = _snackbarMessage.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -151,6 +158,12 @@ class WalletsViewModel(
                     _formError.value = "Enter a valid credit limit for a credit card wallet."
                     return
                 }
+                // Mirrors the backend's CreateAccountRequest.Validate: a credit card can start
+                // already carrying debt, but never more than its own limit.
+                if (initialBalance < -creditLimit) {
+                    _formError.value = "Balance cannot be lower than -credit limit."
+                    return
+                }
             } else if (initialBalance < 0) {
                 _formError.value = "Starting balance can't be negative for this wallet type."
                 return
@@ -191,6 +204,7 @@ class WalletsViewModel(
             try {
                 apiService.archiveAccount(account.id).requireSuccess()
                 _accountPendingArchive.value = null
+                _snackbarMessage.emit("\"${account.name}\" archived")
                 load()
             } catch (e: Exception) {
                 _errorMessage.value = e.toUserMessage("Failed to archive wallet.")

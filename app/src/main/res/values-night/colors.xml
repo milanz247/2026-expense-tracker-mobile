@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches ui/theme/Color.kt's DarkAppColors.background — see values/colors.xml for why the
+         splash can only follow the system day/night qualifier, not the in-app override. -->
+    <color name="splash_background">#000000</color>
+</resources>

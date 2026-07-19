@@ -4,21 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,20 +19,25 @@ import com.example.network.NetworkClient
 import com.example.ui.AppViewModelFactory
 import com.example.ui.auth.AuthScreen
 import com.example.ui.auth.AuthViewModel
-import com.example.ui.theme.LocalAppColors
+import com.example.ui.onboarding.OnboardingScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
+private const val ROUTE_ONBOARDING = "onboarding"
 private const val ROUTE_AUTH = "auth"
 private const val ROUTE_APP = "app"
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        var keepSplashScreenVisible = true
+        splashScreen.setKeepOnScreenCondition { keepSplashScreenVisible }
 
         val dataStoreManager = DataStoreManager(applicationContext)
         val apiService = NetworkClient.getApiService(applicationContext, dataStoreManager)
@@ -57,37 +52,31 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(key1 = Unit) {
                     val token = dataStoreManager.tokenFlow.firstOrNull()
-                    startDestination = if (token.isNullOrBlank()) ROUTE_AUTH else ROUTE_APP
+                    val onboardingSeen = dataStoreManager.onboardingSeenFlow.firstOrNull() ?: false
+                    startDestination = when {
+                        !token.isNullOrBlank() -> ROUTE_APP
+                        !onboardingSeen -> ROUTE_ONBOARDING
+                        else -> ROUTE_AUTH
+                    }
+                    keepSplashScreenVisible = false
                 }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    if (startDestination == null) {
-                        val colors = LocalAppColors.current
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(colors.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(colors.surfaceVariant)
-                                    .border(1.dp, colors.outline, RoundedCornerShape(16.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "F",
-                                    color = colors.accent,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                            }
-                        }
-                    } else {
+                    // The splash screen (installSplashScreen) covers this entire resolution
+                    // window, so there's nothing to draw here while startDestination is null.
+                    if (startDestination != null) {
                         val navController = rememberNavController()
                         NavHost(navController = navController, startDestination = startDestination!!) {
+                            composable(ROUTE_ONBOARDING) {
+                                OnboardingScreen(
+                                    onFinished = {
+                                        scope.launch { dataStoreManager.setOnboardingSeen() }
+                                        navController.navigate(ROUTE_AUTH) {
+                                            popUpTo(ROUTE_ONBOARDING) { inclusive = true }
+                                        }
+                                    }
+                                )
+                            }
                             composable(ROUTE_AUTH) {
                                 val authViewModel: AuthViewModel = viewModel(factory = viewModelFactory)
                                 AuthScreen(

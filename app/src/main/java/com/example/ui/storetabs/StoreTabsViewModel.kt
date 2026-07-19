@@ -166,6 +166,9 @@ class StoreTabsViewModel(
     private val _purchaseAmount = MutableStateFlow("")
     val purchaseAmount: StateFlow<String> = _purchaseAmount.asStateFlow()
 
+    private val _purchaseFee = MutableStateFlow("")
+    val purchaseFee: StateFlow<String> = _purchaseFee.asStateFlow()
+
     private val _purchaseCategoryId = MutableStateFlow<Long?>(null)
     val purchaseCategoryId: StateFlow<Long?> = _purchaseCategoryId.asStateFlow()
 
@@ -174,6 +177,7 @@ class StoreTabsViewModel(
 
     fun openPurchaseForm() {
         _purchaseAmount.value = ""
+        _purchaseFee.value = ""
         _purchaseCategoryId.value = _categories.value.firstOrNull()?.id
         _purchaseDescription.value = ""
         _formError.value = null
@@ -186,6 +190,11 @@ class StoreTabsViewModel(
 
     fun onPurchaseAmountChanged(value: String) {
         _purchaseAmount.value = value
+        _formError.value = null
+    }
+
+    fun onPurchaseFeeChanged(value: String) {
+        _purchaseFee.value = value
         _formError.value = null
     }
 
@@ -205,6 +214,11 @@ class StoreTabsViewModel(
             _formError.value = "Enter a valid amount."
             return
         }
+        val fee = _purchaseFee.value.trim().toDoubleOrNull() ?: 0.0
+        if (fee < 0) {
+            _formError.value = "Fee cannot be negative."
+            return
+        }
         val categoryId = _purchaseCategoryId.value
         if (categoryId == null) {
             _formError.value = "Choose a category."
@@ -216,7 +230,7 @@ class StoreTabsViewModel(
             try {
                 apiService.recordPurchase(
                     creditorId,
-                    RecordPurchaseRequest(amount = amount, categoryId = categoryId, description = _purchaseDescription.value.trim(), date = nowIso8601())
+                    RecordPurchaseRequest(amount = amount, fee = fee, categoryId = categoryId, description = _purchaseDescription.value.trim(), date = nowIso8601())
                 )
                 _showPurchaseForm.value = false
                 loadDetail(creditorId)
@@ -236,11 +250,15 @@ class StoreTabsViewModel(
     private val _settlementAmount = MutableStateFlow("")
     val settlementAmount: StateFlow<String> = _settlementAmount.asStateFlow()
 
+    private val _settlementFee = MutableStateFlow("")
+    val settlementFee: StateFlow<String> = _settlementFee.asStateFlow()
+
     private val _settlementAccountId = MutableStateFlow<Long?>(null)
     val settlementAccountId: StateFlow<Long?> = _settlementAccountId.asStateFlow()
 
     fun openSettlementForm() {
         _settlementAmount.value = ""
+        _settlementFee.value = ""
         _settlementAccountId.value = _accounts.value.firstOrNull()?.id
         _formError.value = null
         _showSettlementForm.value = true
@@ -252,6 +270,11 @@ class StoreTabsViewModel(
 
     fun onSettlementAmountChanged(value: String) {
         _settlementAmount.value = value
+        _formError.value = null
+    }
+
+    fun onSettlementFeeChanged(value: String) {
+        _settlementFee.value = value
         _formError.value = null
     }
 
@@ -268,8 +291,15 @@ class StoreTabsViewModel(
             _formError.value = "Enter a valid amount."
             return
         }
+        // Only the principal counts against the shop's outstanding debt — a settlement fee is a
+        // separate cost paid to a third party, matching backend/internal/store's settlement rule.
         if (Math.round(amount * 100) > outstanding) {
             _formError.value = "Amount exceeds the outstanding balance."
+            return
+        }
+        val fee = _settlementFee.value.trim().toDoubleOrNull() ?: 0.0
+        if (fee < 0) {
+            _formError.value = "Fee cannot be negative."
             return
         }
         val accountId = _settlementAccountId.value
@@ -281,7 +311,7 @@ class StoreTabsViewModel(
             _isSubmitting.value = true
             _formError.value = null
             try {
-                apiService.recordSettlement(creditorId, RecordSettlementRequest(accountId = accountId, amountPaid = amount, date = nowIso8601()))
+                apiService.recordSettlement(creditorId, RecordSettlementRequest(accountId = accountId, amountPaid = amount, fee = fee, date = nowIso8601()))
                 _showSettlementForm.value = false
                 loadDetail(creditorId)
             } catch (e: Exception) {

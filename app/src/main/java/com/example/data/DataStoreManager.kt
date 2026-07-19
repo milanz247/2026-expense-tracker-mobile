@@ -3,6 +3,7 @@ package com.example.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -19,6 +20,18 @@ class DataStoreManager(private val context: Context) {
         val USER_EMAIL_KEY = stringPreferencesKey("user_email")
         val USER_CURRENCY_KEY = stringPreferencesKey("user_currency")
         val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
+        val ONBOARDING_SEEN_KEY = booleanPreferencesKey("onboarding_seen")
+    }
+
+    /** Local-only UI flag — whether the first-run Onboarding carousel has been shown once. */
+    val onboardingSeenFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[ONBOARDING_SEEN_KEY] ?: false
+    }
+
+    suspend fun setOnboardingSeen() {
+        context.dataStore.edit { preferences ->
+            preferences[ONBOARDING_SEEN_KEY] = true
+        }
     }
 
     val themeModeFlow: Flow<ThemeMode> = context.dataStore.data.map { preferences ->

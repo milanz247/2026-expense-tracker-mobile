@@ -1,5 +1,6 @@
 package com.example.ui.auth
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -7,8 +8,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -23,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AppColors
 import com.example.ui.theme.GeistMono
 import com.example.ui.theme.LocalAppColors
+import com.example.ui.theme.Spacing
 
 private val fieldColors: @Composable (AppColors) -> TextFieldColors = { colors ->
     OutlinedTextFieldDefaults.colors(
@@ -84,7 +90,7 @@ fun AuthScreen(
             .fillMaxSize()
             .background(colors.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(24.dp),
+            .padding(Spacing.xxl),
         contentAlignment = Alignment.Center
     ) {
         AnimatedVisibility(
@@ -96,51 +102,68 @@ fun AuthScreen(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(28.dp)
+                verticalArrangement = Arrangement.spacedBy(Spacing.xxl)
             ) {
                 // Header / Brand
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(colors.accent),
+                            .size(72.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(colors.accent, colors.accent.copy(alpha = 0.72f))
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "F",
-                            color = colors.onAccent,
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.ExtraBold
+                        Icon(
+                            imageVector = Icons.Default.AccountBalanceWallet,
+                            contentDescription = null,
+                            tint = colors.onAccent,
+                            modifier = Modifier.size(34.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
 
-                    Text(
-                        text = if (isSignUpMode) "Create your account" else "Welcome back",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onBackground,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Text(
-                        text = if (isSignUpMode) "Set up your ledger in a minute" else "Sign in to keep tracking your money",
-                        fontSize = 13.sp,
-                        color = colors.textSecondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
+                    AnimatedContent(
+                        targetState = isSignUpMode,
+                        transitionSpec = {
+                            (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 6 }) togetherWith
+                                (fadeOut(tween(140)) + slideOutVertically(tween(140)) { -it / 6 })
+                        },
+                        label = "auth_headline"
+                    ) { signUp ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            Text(
+                                text = if (signUp) "Create your account" else "Welcome back",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onBackground,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = if (signUp) "Set up your ledger in a minute" else "Sign in to keep tracking your money",
+                                fontSize = 13.sp,
+                                color = colors.textSecondary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = Spacing.lg)
+                            )
+                        }
+                    }
                 }
 
                 // Input Fields
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.lg)
                 ) {
                     AnimatedVisibility(
                         visible = isSignUpMode,
@@ -149,7 +172,7 @@ fun AuthScreen(
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
                         ) {
                             OutlinedTextField(
                                 value = name,
@@ -161,7 +184,7 @@ fun AuthScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("name_input"),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = MaterialTheme.shapes.medium
                             )
 
                             ExposedDropdownMenuBox(
@@ -180,7 +203,7 @@ fun AuthScreen(
                                         .fillMaxWidth()
                                         .menuAnchor()
                                         .testTag("currency_input"),
-                                    shape = RoundedCornerShape(16.dp)
+                                    shape = MaterialTheme.shapes.medium
                                 )
                                 ExposedDropdownMenu(
                                     expanded = currencyMenuExpanded,
@@ -213,7 +236,7 @@ fun AuthScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("email_input"),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.medium
                     )
 
                     OutlinedTextField(
@@ -239,37 +262,42 @@ fun AuthScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("password_input"),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.medium
                     )
                 }
 
-                if (errorMessage != null) {
-                    Text(
-                        text = errorMessage!!,
-                        color = colors.error,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                            .testTag("error_banner")
-                    )
-                } else if (statusMessage != null) {
-                    Text(
-                        text = statusMessage!!,
-                        color = colors.textSecondary,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                            .testTag("status_banner")
-                    )
+                AnimatedContent(
+                    targetState = errorMessage to statusMessage,
+                    label = "auth_feedback"
+                ) { (error, status) ->
+                    when {
+                        error != null -> Text(
+                            text = error,
+                            color = colors.error,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.sm)
+                                .testTag("error_banner")
+                        )
+                        status != null -> Text(
+                            text = status,
+                            color = colors.textSecondary,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.sm)
+                                .testTag("status_banner")
+                        )
+                        else -> Spacer(modifier = Modifier.height(0.dp))
+                    }
                 }
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.lg),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Button(
@@ -285,7 +313,7 @@ fun AuthScreen(
                             .fillMaxWidth()
                             .height(54.dp)
                             .testTag("submit_button"),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = MaterialTheme.shapes.medium
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
@@ -294,16 +322,18 @@ fun AuthScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text(
-                                text = if (isSignUpMode) "Create Account" else "Sign In",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
-                            )
+                            AnimatedContent(targetState = isSignUpMode, label = "auth_submit_label") { signUp ->
+                                Text(
+                                    text = if (signUp) "Create Account" else "Sign In",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+                            }
                         }
                     }
 
                     Row(
-                        modifier = Modifier.padding(vertical = 4.dp),
+                        modifier = Modifier.padding(vertical = Spacing.xs),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

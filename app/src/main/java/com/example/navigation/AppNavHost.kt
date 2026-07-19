@@ -32,14 +32,19 @@ import androidx.navigation.navArgument
 import com.example.data.DataStoreManager
 import com.example.network.ApiService
 import com.example.ui.AppViewModelFactory
+import com.example.ui.about.AboutScreen
 import com.example.ui.categories.CategoriesScreen
 import com.example.ui.categories.CategoriesViewModel
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.dashboard.DashboardViewModel
+import com.example.ui.data.ExportScreen
 import com.example.ui.debts.DebtsScreen
 import com.example.ui.debts.DebtsViewModel
+import com.example.ui.notifications.NotificationsScreen
 import com.example.ui.profile.ProfileScreen
 import com.example.ui.profile.ProfileViewModel
+import com.example.ui.search.SearchScreen
+import com.example.ui.statistics.StatisticsScreen
 import com.example.ui.storetabs.StoreDetailScreen
 import com.example.ui.storetabs.StoreTabsScreen
 import com.example.ui.storetabs.StoreTabsViewModel
@@ -60,6 +65,11 @@ private object Routes {
     const val STORE_TABS = "storetabs"
     const val STORE_TAB_DETAIL = "storetab_detail/{creditorId}"
     const val PROFILE = "profile"
+    const val SEARCH = "search"
+    const val STATISTICS = "statistics"
+    const val NOTIFICATIONS = "notifications"
+    const val ABOUT = "about"
+    const val EXPORT = "export"
 }
 
 private data class BottomItem(val route: String, val label: String, val icon: ImageVector)
@@ -134,8 +144,28 @@ fun AppShell(
                 DashboardScreen(
                     viewModel = vm,
                     onSeeAllTransactions = { navController.navigate(Routes.TRANSACTIONS) },
-                    onAddTransaction = { navController.navigate(Routes.TRANSACTIONS) }
+                    onAddTransaction = { navController.navigate(Routes.TRANSACTIONS) },
+                    onSearch = { navController.navigate(Routes.SEARCH) },
+                    onSeeStatistics = { navController.navigate(Routes.STATISTICS) }
                 )
+            }
+            composable(Routes.SEARCH) {
+                val vm: TransactionsViewModel = viewModel(factory = factory)
+                SearchScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.STATISTICS) {
+                val vm: DashboardViewModel = viewModel(factory = factory)
+                StatisticsScreen(viewModel = vm, onBack = { navController.popBackStack() })
+            }
+            composable(Routes.NOTIFICATIONS) {
+                NotificationsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.ABOUT) {
+                AboutScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.EXPORT) {
+                val vm: TransactionsViewModel = viewModel(factory = factory)
+                ExportScreen(viewModel = vm, onBack = { navController.popBackStack() })
             }
             composable(Routes.WALLETS) {
                 val vm: WalletsViewModel = viewModel(factory = factory)
@@ -194,6 +224,9 @@ fun AppShell(
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
                     onManageCategories = { navController.navigate(Routes.CATEGORIES) },
+                    onNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                    onExportData = { navController.navigate(Routes.EXPORT) },
+                    onAbout = { navController.navigate(Routes.ABOUT) },
                     onLoggedOut = onLoggedOut
                 )
             }

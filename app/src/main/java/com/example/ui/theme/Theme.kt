@@ -2,14 +2,30 @@ package com.example.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+
+/**
+ * Named corner-radius scale shared by every screen. Centralizing this is what lets "large" mean
+ * the same radius everywhere a card/sheet/dialog needs it, instead of each screen picking its own
+ * ad hoc dp value.
+ */
+val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp),
+)
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -80,6 +96,7 @@ fun MyApplicationTheme(
         MaterialTheme(
             colorScheme = materialScheme(appColors, darkTheme),
             typography = Typography,
+            shapes = AppShapes,
             content = content
         )
     }

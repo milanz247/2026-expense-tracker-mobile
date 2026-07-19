@@ -1,12 +1,8 @@
 package com.example.ui.wallets
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -15,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,13 +19,16 @@ import androidx.compose.ui.unit.sp
 import com.example.network.ACCOUNT_TYPES
 import com.example.network.ACCOUNT_TYPE_CREDIT_CARD
 import com.example.network.AccountResponse
+import com.example.ui.common.AppListRow
 import com.example.ui.common.EmptyState
 import com.example.ui.common.ErrorBanner
 import com.example.ui.common.FullScreenLoader
 import com.example.ui.common.formatMoney
+import com.example.ui.common.iconForAccountType
 import com.example.ui.theme.AppColors
 import com.example.ui.theme.GeistMono
 import com.example.ui.theme.LocalAppColors
+import com.example.ui.theme.Spacing
 
 private val fieldColors: @Composable (AppColors) -> TextFieldColors = { colors ->
     OutlinedTextFieldDefaults.colors(
@@ -56,42 +54,73 @@ fun WalletsScreen(
     val showForm by viewModel.showForm.collectAsState()
     val pendingArchive by viewModel.accountPendingArchive.collectAsState()
 
-    Box(modifier = modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
-        ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "Wallets", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                    IconButton(onClick = { viewModel.openAddForm() }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add wallet", tint = colors.accent)
-                    }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = colors.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Wallets", fontWeight = FontWeight.Bold, color = colors.onBackground) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background)
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                text = { Text("Add Wallet") },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                onClick = { viewModel.openAddForm() },
+                containerColor = colors.accent,
+                contentColor = colors.onAccent
+            )
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding).windowInsetsPadding(WindowInsets.safeDrawing)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.xl),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                contentPadding = PaddingValues(top = Spacing.lg, bottom = 96.dp)
+            ) {
+                if (errorMessage != null) {
+                    item { ErrorBanner(errorMessage!!) }
                 }
-            }
 
-            if (errorMessage != null) {
-                item { ErrorBanner(errorMessage!!) }
-            }
-
-            if (isLoading && accounts.isEmpty()) {
-                item { FullScreenLoader(modifier = Modifier.fillMaxWidth().height(200.dp)) }
-            } else if (accounts.isEmpty()) {
-                item { EmptyState("No wallets yet. Tap + to add your first one.") }
-            } else {
-                items(accounts, key = { it.id }) { account ->
-                    WalletCard(
-                        account = account,
-                        currency = currency,
-                        onClick = { onWalletClick(account.id) },
-                        onEdit = { viewModel.openEditForm(account) },
-                        onArchive = { viewModel.requestArchive(account) }
-                    )
+                if (isLoading && accounts.isEmpty()) {
+                    item { FullScreenLoader(modifier = Modifier.fillMaxWidth().height(200.dp)) }
+                } else if (accounts.isEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                            EmptyState("No wallets yet. Add your first one to start tracking balances.")
+                            Button(
+                                onClick = { viewModel.openAddForm() },
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.onAccent),
+                                shape = MaterialTheme.shapes.medium,
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add Wallet")
+                            }
+                        }
+                    }
+                } else {
+                    items(accounts, key = { it.id }) { account ->
+                        WalletCard(
+                            account = account,
+                            currency = currency,
+                            onClick = { onWalletClick(account.id) },
+                            onEdit = { viewModel.openEditForm(account) },
+                            onArchive = { viewModel.requestArchive(account) },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
                 }
             }
         }
@@ -110,7 +139,7 @@ fun WalletsScreen(
             title = { Text("Archive \"${account.name}\"?") },
             text = { Text("This hides the wallet from your active list. Its transaction history is kept.") },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmArchive() }) { Text("Archive", color = colors.accent) }
+                TextButton(onClick = { viewModel.confirmArchive() }) { Text("Archive", color = colors.error) }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.cancelArchive() }) { Text("Cancel", color = colors.textMuted) }
@@ -125,59 +154,55 @@ private fun WalletCard(
     currency: String,
     onClick: () -> Unit,
     onEdit: () -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = LocalAppColors.current
     var menuExpanded by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.outline, RoundedCornerShape(22.dp))
-            .clickable { onClick() }
-            .padding(18.dp)
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = account.name,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = account.type.replace('_', ' ').uppercase(),
-                    fontSize = 10.sp,
-                    color = colors.textMuted,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = formatMoney(account.balance, currency),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onBackground,
-                    fontFamily = GeistMono
-                )
-                if (account.type == ACCOUNT_TYPE_CREDIT_CARD && account.creditLimit != null) {
-                    Text(
-                        text = "Limit ${formatMoney(account.creditLimit, currency)}",
-                        fontSize = 11.sp,
-                        color = colors.textMuted
-                    )
-                }
-            }
+
+    AppListRow(
+        leadingIcon = iconForAccountType(account.type),
+        onClick = onClick,
+        modifier = modifier,
+        trailing = {
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
                     Icon(Icons.Default.MoreVert, contentDescription = "Wallet options", tint = colors.textMuted)
                 }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, containerColor = colors.surfaceVariant) {
                     DropdownMenuItem(text = { Text("Edit", color = colors.onBackground) }, onClick = { menuExpanded = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Archive", color = colors.onBackground) }, onClick = { menuExpanded = false; onArchive() })
+                    DropdownMenuItem(text = { Text("Archive", color = colors.error) }, onClick = { menuExpanded = false; onArchive() })
                 }
             }
+        }
+    ) {
+        Text(
+            text = account.name,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = account.type.replace('_', ' ').uppercase(),
+            fontSize = 10.sp,
+            color = colors.textMuted,
+            letterSpacing = 1.sp
+        )
+        Text(
+            text = formatMoney(account.balance, currency),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.onBackground,
+            fontFamily = GeistMono
+        )
+        if (account.type == ACCOUNT_TYPE_CREDIT_CARD && account.creditLimit != null) {
+            Text(
+                text = "Limit ${formatMoney(account.creditLimit, currency)}",
+                fontSize = 11.sp,
+                color = colors.textMuted
+            )
         }
     }
 }
@@ -211,7 +236,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                     label = { Text("Name") },
                     singleLine = true,
                     colors = fieldColors(colors),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -223,7 +248,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                         label = { Text("Type") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded) },
                         colors = fieldColors(colors),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
                     ExposedDropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }, containerColor = colors.surfaceVariant) {
@@ -244,7 +269,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = fieldColors(colors),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (type == ACCOUNT_TYPE_CREDIT_CARD) {
@@ -255,7 +280,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = fieldColors(colors),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = MaterialTheme.shapes.medium,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
