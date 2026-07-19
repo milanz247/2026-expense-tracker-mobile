@@ -25,6 +25,7 @@ import com.example.ui.common.ErrorBanner
 import com.example.ui.common.FullScreenLoader
 import com.example.ui.common.formatMoney
 import com.example.ui.common.iconForAccountType
+import com.example.ui.common.tintForAccountType
 import com.example.ui.theme.AppColors
 import com.example.ui.theme.GeistMono
 import com.example.ui.theme.LocalAppColors
@@ -162,6 +163,7 @@ private fun WalletCard(
 
     AppListRow(
         leadingIcon = iconForAccountType(account.type),
+        leadingTint = tintForAccountType(account.type, colors),
         onClick = onClick,
         modifier = modifier,
         trailing = {

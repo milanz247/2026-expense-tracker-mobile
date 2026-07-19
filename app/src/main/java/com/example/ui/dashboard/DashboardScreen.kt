@@ -59,6 +59,7 @@ import com.example.ui.common.formatMoney
 import com.example.ui.common.formatMoneyCompact
 import com.example.ui.common.iconForAccountType
 import com.example.ui.common.parseHexColor
+import com.example.ui.common.tintForAccountType
 import com.example.ui.theme.GeistMono
 import com.example.ui.theme.LocalAppColors
 import com.example.ui.theme.Spacing
@@ -236,15 +237,29 @@ private fun HeroBalanceCard(
     currency: String
 ) {
     val colors = LocalAppColors.current
-    MatteCard(cornerRadius = 28, contentPadding = PaddingValues(Spacing.xxl)) {
+    // Hero-only surface (see AppColors.heroGradient doc) — every text/icon color below is
+    // chosen against this gradient backdrop specifically, not inherited from the neutral
+    // colors.onBackground/textMuted this card used before.
+    MatteCard(
+        cornerRadius = 28,
+        contentPadding = PaddingValues(Spacing.xxl),
+        gradient = colors.heroGradient(),
+        shadowElevation = 8.dp
+    ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(text = "NET BALANCE", fontSize = 11.sp, color = colors.textMuted, letterSpacing = 1.sp, fontFamily = GeistMono)
+                Text(
+                    text = "NET BALANCE",
+                    fontSize = 11.sp,
+                    color = colors.onAccent.copy(alpha = 0.7f),
+                    letterSpacing = 1.sp,
+                    fontFamily = GeistMono
+                )
                 Text(
                     text = formatMoney(animatedCents(net.amountCents), currency),
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colors.onBackground,
+                    color = colors.onAccent,
                     fontFamily = GeistMono,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -264,16 +279,16 @@ private fun HeroStat(label: String, metric: MetricWithTrend, currency: String, m
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(colors.surfaceVariant)
+            .background(colors.onAccent.copy(alpha = 0.14f))
             .padding(Spacing.md),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs)
     ) {
-        Text(text = label.uppercase(), fontSize = 10.sp, color = colors.textMuted, letterSpacing = 1.sp, fontFamily = GeistMono)
+        Text(text = label.uppercase(), fontSize = 10.sp, color = colors.onAccent.copy(alpha = 0.7f), letterSpacing = 1.sp, fontFamily = GeistMono)
         Text(
             text = formatMoneyCompact(animatedCents(metric.amountCents), currency),
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = colors.onBackground,
+            color = colors.onAccent,
             fontFamily = GeistMono,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -285,13 +300,13 @@ private fun HeroStat(label: String, metric: MetricWithTrend, currency: String, m
                 Icon(
                     imageVector = if (positive) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                     contentDescription = if (positive) "Up" else "Down",
-                    tint = if (positive) colors.positive else colors.negative,
+                    tint = colors.onAccent,
                     modifier = Modifier.size(12.dp)
                 )
                 Text(
                     text = "${String.format("%.1f", kotlin.math.abs(change))}%",
                     fontSize = 11.sp,
-                    color = if (positive) colors.positive else colors.negative
+                    color = colors.onAccent
                 )
             }
         }
@@ -312,6 +327,7 @@ private fun animatedCents(target: Long): Long {
 @Composable
 private fun WalletChip(account: AccountResponse, currency: String) {
     val colors = LocalAppColors.current
+    val tint = tintForAccountType(account.type, colors)
     Box(
         modifier = Modifier
             .width(148.dp)
@@ -325,10 +341,10 @@ private fun WalletChip(account: AccountResponse, currency: String) {
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(colors.accent.copy(alpha = 0.16f)),
+                    .background(tint.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(iconForAccountType(account.type), contentDescription = null, tint = colors.accent, modifier = Modifier.size(15.dp))
+                Icon(iconForAccountType(account.type), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
             }
             Text(
                 text = account.name,

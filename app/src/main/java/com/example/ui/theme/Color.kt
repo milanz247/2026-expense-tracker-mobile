@@ -35,6 +35,12 @@ data class AppColors(
     val positive: Color,
     val negative: Color,
     val error: Color,
+    /** A tier above [surface] for chrome that should read as genuinely floating above the base
+     * layer — the pill nav bar, sheet surfaces — as opposed to just another card. */
+    val surfaceElevated: Color,
+    /** Second gradient stop paired with [accent], reserved for hero-only surfaces (see
+     * [heroGradient]) — never used on an interactive control. */
+    val accentSecondary: Color,
 )
 
 // Pixel-style dark theme: true-black AMOLED background, soft (not pure) white text, and
@@ -53,6 +59,8 @@ val DarkAppColors = AppColors(
     positive = Color(0xFF4ADE80),
     negative = Color(0xFFF87171),
     error = Color(0xFFF87171),
+    surfaceElevated = Color(0xFF2A2A30),
+    accentSecondary = Color(0xFF5B8DEF),
 )
 
 // Pixel-style light theme: soft off-white background (not stark white) with elevated white
@@ -70,6 +78,8 @@ val LightAppColors = AppColors(
     positive = Color(0xFF16A34A),
     negative = Color(0xFFDC2626),
     error = Color(0xFFDC2626),
+    surfaceElevated = Color(0xFFFFFFFF),
+    accentSecondary = Color(0xFF0B57D0),
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }

@@ -17,8 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.GeistMono
@@ -29,15 +32,19 @@ fun MatteCard(
     modifier: Modifier = Modifier,
     cornerRadius: Int = 20,
     contentPadding: PaddingValues = PaddingValues(16.dp),
+    gradient: Brush? = null,
+    shadowElevation: Dp = 0.dp,
     content: @Composable () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val shape = RoundedCornerShape(cornerRadius.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(cornerRadius.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.outline, RoundedCornerShape(cornerRadius.dp))
+            .then(if (shadowElevation > 0.dp) Modifier.shadow(shadowElevation, shape, clip = false) else Modifier)
+            .clip(shape)
+            .then(if (gradient != null) Modifier.background(gradient) else Modifier.background(colors.surface))
+            .then(if (gradient == null) Modifier.border(1.dp, colors.outline, shape) else Modifier)
             .padding(contentPadding)
     ) {
         content()

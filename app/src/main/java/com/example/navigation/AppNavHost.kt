@@ -1,5 +1,7 @@
 package com.example.navigation
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -11,16 +13,10 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -35,6 +31,8 @@ import com.example.ui.AppViewModelFactory
 import com.example.ui.about.AboutScreen
 import com.example.ui.categories.CategoriesScreen
 import com.example.ui.categories.CategoriesViewModel
+import com.example.ui.common.FloatingBottomNavBar
+import com.example.ui.common.FloatingNavItem
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.dashboard.DashboardViewModel
 import com.example.ui.data.ExportScreen
@@ -72,14 +70,12 @@ private object Routes {
     const val EXPORT = "export"
 }
 
-private data class BottomItem(val route: String, val label: String, val icon: ImageVector)
-
 private val bottomItems = listOf(
-    BottomItem(Routes.DASHBOARD, "Home", Icons.Default.Home),
-    BottomItem(Routes.WALLETS, "Wallets", Icons.Default.AccountBalanceWallet),
-    BottomItem(Routes.DEBTS, "Debts", Icons.Default.Receipt),
-    BottomItem(Routes.STORE_TABS, "Tabs", Icons.Default.Store),
-    BottomItem(Routes.PROFILE, "Profile", Icons.Default.Person)
+    FloatingNavItem(Routes.DASHBOARD, "Home", Icons.Default.Home),
+    FloatingNavItem(Routes.WALLETS, "Wallets", Icons.Default.AccountBalanceWallet),
+    FloatingNavItem(Routes.DEBTS, "Debts", Icons.Default.Receipt),
+    FloatingNavItem(Routes.STORE_TABS, "Tabs", Icons.Default.Store),
+    FloatingNavItem(Routes.PROFILE, "Profile", Icons.Default.Person)
 )
 
 /** The authenticated part of the app: bottom-nav shell + every feature screen. */
@@ -102,31 +98,22 @@ fun AppShell(
     Scaffold(
         containerColor = colors.background,
         bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(containerColor = colors.surface) {
-                    bottomItems.forEach { item ->
-                        val selected = currentRoute == item.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = colors.accent,
-                                selectedTextColor = colors.accent,
-                                indicatorColor = colors.surfaceVariant,
-                                unselectedIconColor = colors.textMuted,
-                                unselectedTextColor = colors.textMuted
-                            ),
-                        )
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 2 },
+                exit = fadeOut(tween(150)) + slideOutVertically(tween(150)) { it / 2 }
+            ) {
+                FloatingBottomNavBar(
+                    items = bottomItems,
+                    selectedRoute = currentRoute,
+                    onItemSelected = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
@@ -134,10 +121,10 @@ fun AppShell(
             navController = navController,
             startDestination = Routes.DASHBOARD,
             modifier = Modifier.padding(innerPadding),
-            enterTransition = { fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) + slideInVertically(initialOffsetY = { it / 24 }) },
-            exitTransition = { fadeOut(animationSpec = androidx.compose.animation.core.tween(150)) },
-            popEnterTransition = { fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) },
-            popExitTransition = { fadeOut(animationSpec = androidx.compose.animation.core.tween(150)) + slideOutVertically(targetOffsetY = { it / 24 }) }
+            enterTransition = { fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it / 24 }) },
+            exitTransition = { fadeOut(animationSpec = tween(150)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(220)) },
+            popExitTransition = { fadeOut(animationSpec = tween(150)) + slideOutVertically(targetOffsetY = { it / 24 }) }
         ) {
             composable(Routes.DASHBOARD) {
                 val vm: DashboardViewModel = viewModel(factory = factory)
