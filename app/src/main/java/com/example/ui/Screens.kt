@@ -20,7 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -36,21 +40,24 @@ import java.util.*
 
 // ==========================================
 // Shared design tokens — every screen and dialog pulls from this single
-// palette so the whole app (including AlertDialogs, which Material3
-// would otherwise tint with its own auto-derived tonal surface) reads
-// as one consistent dark/red system instead of a patchwork of screens.
+// palette (backed by LocalAppColors, see ui/theme/Palette.kt) so the
+// whole app, including AlertDialogs which Material3 would otherwise tint
+// with its own auto-derived tonal surface, reads as one consistent
+// system that follows the light/dark toggle instead of a patchwork of
+// screens frozen to one hardcoded mode.
 // ==========================================
 
-val AppBg = Color(0xFF120A0C)
-val SurfaceColor = Color(0xFF1E1215)
-val DialogSurfaceColor = Color(0xFF241419)
-val TextPrimary = Color(0xFFF5EAEC)
-val TextSecondary = Color(0xFFB9A3A7)
-val AccentColor = Color(0xFFE0263B)
-val AccentMuted = Color(0xFF3A131A)
-val DangerColor = Color(0xFFFF4655)
-val SuccessColor = Color(0xFF34D399)
-val BorderColor = Color(0xFF2C1A1E)
+val AppBg: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.bg
+val SurfaceColor: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.surface
+val DialogSurfaceColor: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.dialogSurface
+val TextPrimary: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.textPrimary
+val TextSecondary: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.textSecondary
+val AccentColor: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.accent
+val AccentMuted: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.accentMuted
+val AccentOnMuted: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.onAccentMuted
+val DangerColor: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.danger
+val SuccessColor: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.success
+val BorderColor: Color @Composable get() = com.example.ui.theme.LocalAppColors.current.border
 
 @Composable
 fun StandardButtonColors(danger: Boolean = false) = ButtonDefaults.buttonColors(
@@ -296,6 +303,83 @@ fun formatCents(cents: Long, currency: String = "USD"): String {
     return format.format(cents / 100.0)
 }
 
+/** A real ring/donut chart for a category breakdown — each entry already carries its own hex color from the backend, so the chart is naturally multi-colored rather than one dominant accent tone. */
+@Composable
+fun CategoryPieChart(
+    entries: List<CategoryBreakdownEntry>,
+    modifier: Modifier = Modifier
+) {
+    val fallbackColors = listOf(AccentColor, SuccessColor, Color(0xFF3B82F6), Color(0xFFFBBF24), Color(0xFF8B5CF6), Color(0xFF0EA5E9))
+    val slices = remember(entries) {
+        entries.mapIndexed { index, entry ->
+            val color = try {
+                Color(android.graphics.Color.parseColor(entry.color))
+            } catch (e: Exception) {
+                fallbackColors[index % fallbackColors.size]
+            }
+            entry to color
+        }
+    }
+    val trackColor = BorderColor
+
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Canvas(modifier = Modifier.size(120.dp)) {
+            val strokeWidth = size.minDimension * 0.26f
+            val diameter = size.minDimension - strokeWidth
+            val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+            val arcSize = Size(diameter, diameter)
+
+            drawArc(
+                color = trackColor,
+                startAngle = 0f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
+                topLeft = topLeft,
+                size = arcSize
+            )
+
+            var startAngle = -90f
+            slices.forEach { (entry, color) ->
+                val sweep = (entry.percentage / 100.0 * 360.0).toFloat()
+                if (sweep > 0f) {
+                    drawArc(
+                        color = color,
+                        startAngle = startAngle,
+                        sweepAngle = sweep.coerceAtMost(359.5f),
+                        useCenter = false,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
+                        topLeft = topLeft,
+                        size = arcSize
+                    )
+                    startAngle += sweep
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            slices.take(6).forEach { (entry, color) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(9.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${entry.categoryName} · ${String.format(Locale.US, "%.0f", entry.percentage)}%",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ==========================================
 // Authentication Screens (Login & Register)
 // ==========================================
@@ -324,7 +408,7 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF120A0C))
+                .background(AppBg)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -333,7 +417,7 @@ fun LoginScreen(
             Icon(
                 imageVector = Icons.Default.MonetizationOn,
                 contentDescription = "App Logo",
-                tint = Color(0xFFE0263B),
+                tint = AccentColor,
                 modifier = Modifier.size(80.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -341,12 +425,12 @@ fun LoginScreen(
                 text = "Planetary Finance",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFF5EAEC)
+                color = TextPrimary
             )
             Text(
                 text = "Secure Personal Finance Management System",
                 fontSize = 14.sp,
-                color = Color(0xFFB9A3A7),
+                color = TextSecondary,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(32.dp))
@@ -358,8 +442,8 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
+                    focusedBorderColor = AccentColor,
+                    focusedLabelColor = AccentColor
                 )
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -372,25 +456,25 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
+                    focusedBorderColor = AccentColor,
+                    focusedLabelColor = AccentColor
                 )
             )
             Spacer(modifier = Modifier.height(24.dp))
 
             if (authState is AuthState.Loading) {
-                CircularProgressIndicator(color = Color(0xFFE0263B))
+                CircularProgressIndicator(color = AccentColor)
             } else {
                 Button(
                     onClick = { viewModel.login(email, password) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                 ) {
                     Text("Sign In", color = Color.White, fontWeight = FontWeight.Bold)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 TextButton(onClick = onNavigateToRegister) {
-                    Text("Create a new account instead", color = Color(0xFFE0263B))
+                    Text("Create a new account instead", color = AccentColor)
                 }
             }
         }
@@ -423,7 +507,7 @@ fun RegisterScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF120A0C))
+                .background(AppBg)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -432,7 +516,7 @@ fun RegisterScreen(
             Icon(
                 imageVector = Icons.Default.AppRegistration,
                 contentDescription = "Register Logo",
-                tint = Color(0xFFE0263B),
+                tint = AccentColor,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -440,7 +524,7 @@ fun RegisterScreen(
                 text = "Join Planetary Finance",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFF5EAEC)
+                color = TextPrimary
             )
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -450,8 +534,8 @@ fun RegisterScreen(
                 label = { Text("Full Name") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
+                    focusedBorderColor = AccentColor,
+                    focusedLabelColor = AccentColor
                 )
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -463,8 +547,8 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
+                    focusedBorderColor = AccentColor,
+                    focusedLabelColor = AccentColor
                 )
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -477,8 +561,8 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
+                    focusedBorderColor = AccentColor,
+                    focusedLabelColor = AccentColor
                 )
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -489,25 +573,25 @@ fun RegisterScreen(
                 label = { Text("Default Currency (e.g. USD, EUR, LKR)") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
+                    focusedBorderColor = AccentColor,
+                    focusedLabelColor = AccentColor
                 )
             )
             Spacer(modifier = Modifier.height(24.dp))
 
             if (authState is AuthState.Loading) {
-                CircularProgressIndicator(color = Color(0xFFE0263B))
+                CircularProgressIndicator(color = AccentColor)
             } else {
                 Button(
                     onClick = { viewModel.register(name, email, password, currency) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                 ) {
                     Text("Register & Save Profile", color = Color.White, fontWeight = FontWeight.Bold)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 TextButton(onClick = onNavigateToLogin) {
-                    Text("Sign in with existing credentials", color = Color(0xFFE0263B))
+                    Text("Sign in with existing credentials", color = AccentColor)
                 }
             }
         }
@@ -522,18 +606,15 @@ fun RegisterScreen(
 @Composable
 fun DashboardScreen(
     viewModel: FinanceViewModel,
-    onNavigateToTransactions: () -> Unit
+    onNavigateToTransactions: () -> Unit,
+    onNavigateToWallets: () -> Unit = {}
 ) {
     val report by viewModel.reportSummary.collectAsState()
-    val accounts by viewModel.accounts.collectAsState()
     val authState by viewModel.authState.collectAsState()
 
     val currency = remember(authState) {
         (authState as? AuthState.Authenticated)?.profile?.currency ?: "USD"
     }
-
-    var showAddWalletDialog by remember { mutableStateOf(false) }
-    var accountToEdit by remember { mutableStateOf<LocalAccount?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshReports()
@@ -542,14 +623,14 @@ fun DashboardScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF120A0C))
+            .background(AppBg)
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
         // Welcoming Card with Net Balance
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF3A131A)),
+            colors = CardDefaults.cardColors(containerColor = AccentMuted),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -557,13 +638,13 @@ fun DashboardScreen(
                     text = "NET FINANCIAL POSITION",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFFC4CA)
+                    color = AccentOnMuted
                 )
                 Text(
                     text = report?.netBalance?.amountCents?.let { formatCents(it, currency) } ?: "$0.00",
                     fontSize = 32.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFFFFC4CA)
+                    color = AccentOnMuted
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
@@ -571,15 +652,15 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("Monthly Cash Inflow", fontSize = 11.sp, color = Color(0xFFFFC4CA).copy(alpha = 0.7f))
+                        Text("Monthly Cash Inflow", fontSize = 11.sp, color = AccentOnMuted.copy(alpha = 0.7f))
                         Text(
                             text = report?.totalIncome?.amountCents?.let { formatCents(it, currency) } ?: "$0.00",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF34D399)
+                            color = SuccessColor
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("Monthly Outflow", fontSize = 11.sp, color = Color(0xFFFFC4CA).copy(alpha = 0.7f))
+                        Text("Monthly Outflow", fontSize = 11.sp, color = AccentOnMuted.copy(alpha = 0.7f))
                         Text(
                             text = report?.totalExpense?.amountCents?.let { formatCents(it, currency) } ?: "$0.00",
                             fontWeight = FontWeight.Bold,
@@ -592,100 +673,26 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Wallets & Accounts Horizontal List
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Wallets & Accounts", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
-            IconButton(onClick = { showAddWalletDialog = true }) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Account", tint = Color(0xFFE0263B))
-            }
-        }
-        if (accounts.isNotEmpty()) {
-            Text(
-                text = "Long-press a wallet to edit or archive it",
-                fontSize = 10.sp,
-                color = Color(0xFFB9A3A7)
-            )
-        }
-
-        if (accounts.isEmpty()) {
-            OutlinedCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showAddWalletDialog = true }
-                    .padding(vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                    Text("No wallets created yet. Tap '+' to configure.", color = Color(0xFFB9A3A7), fontSize = 14.sp)
-                }
-            }
-        } else {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(vertical = 8.dp)
-            ) {
-                items(accounts) { acc ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215)),
-                        modifier = Modifier
-                            .width(160.dp)
-                            .height(100.dp)
-                            .combinedClickable(
-                                onClick = {},
-                                onLongClick = { accountToEdit = acc }
-                            ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = acc.name,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = Color(0xFFF5EAEC)
-                            )
-                            Column {
-                                Text(
-                                    text = formatCents(acc.balance, currency),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color(0xFFE0263B)
-                                )
-                                Text(
-                                    text = acc.type.uppercase(),
-                                    fontSize = 10.sp,
-                                    color = Color(0xFFB9A3A7)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
         // Quick Actions block
-        Text("Quick Transactions", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
+        Text("Quick Transactions", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
         Spacer(modifier = Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Button(
+                onClick = onNavigateToWallets,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor, contentColor = TextPrimary)
+            ) {
+                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                Text("Wallets")
+            }
+            Button(
                 onClick = onNavigateToTransactions,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
             ) {
                 Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
@@ -698,53 +705,18 @@ fun DashboardScreen(
         // Category-wise spending breakdown
         val breakdown = report?.categoryBreakdown.orEmpty().filter { it.amountCents > 0 }
         if (breakdown.isNotEmpty()) {
-            Text("Spending by Category", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
+            Text("Spending by Category", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
             Spacer(modifier = Modifier.height(10.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = SurfaceColor)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    breakdown.take(6).forEach { entry ->
-                        val entryColor = remember(entry.color) {
-                            try { Color(android.graphics.Color.parseColor(entry.color)) } catch (e: Exception) { AccentColor }
-                        }
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(10.dp)
-                                            .clip(CircleShape)
-                                            .background(entryColor)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(entry.categoryName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                                }
-                                Text(
-                                    formatCents(entry.amountCents, currency),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { (entry.percentage / 100.0).toFloat().coerceIn(0f, 1f) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = entryColor,
-                                trackColor = BorderColor
-                            )
-                        }
-                    }
-                }
+                CategoryPieChart(
+                    entries = breakdown,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                )
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -755,9 +727,9 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Recent Activity", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
+            Text("Recent Activity", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
             TextButton(onClick = onNavigateToTransactions) {
-                Text("View All", color = Color(0xFFE0263B))
+                Text("View All", color = AccentColor)
             }
         }
 
@@ -765,7 +737,7 @@ fun DashboardScreen(
             Text(
                 text = "No recorded transactions found. Try making your first expense or inflow log.",
                 fontSize = 13.sp,
-                color = Color(0xFFB9A3A7),
+                color = TextSecondary,
                 modifier = Modifier.padding(vertical = 12.dp)
             )
         } else {
@@ -782,7 +754,7 @@ fun DashboardScreen(
                             .clip(CircleShape)
                             .background(
                                 tx.category?.color?.let { Color(android.graphics.Color.parseColor(it)) }
-                                    ?: Color(0xFF2C1A1E)
+                                    ?: BorderColor
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -801,20 +773,131 @@ fun DashboardScreen(
                             fontSize = 14.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            color = Color(0xFFF5EAEC)
+                            color = TextPrimary
                         )
                         Text(
                             text = tx.category?.name ?: tx.type.uppercase(),
                             fontSize = 11.sp,
-                            color = Color(0xFFB9A3A7)
+                            color = TextSecondary
                         )
                     }
                     Text(
                         text = (if (tx.type == "expense") "-" else "+") + formatCents(tx.amount, currency),
                         fontWeight = FontWeight.Bold,
-                        color = if (tx.type == "expense") Color(0xFFFF4655) else Color(0xFF34D399),
+                        color = if (tx.type == "expense") DangerColor else SuccessColor,
                         fontSize = 14.sp
                     )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// Wallets Screen
+// ==========================================
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun WalletsScreen(viewModel: FinanceViewModel) {
+    val accounts by viewModel.accounts.collectAsState()
+    val authState by viewModel.authState.collectAsState()
+    val currency = remember(authState) {
+        (authState as? AuthState.Authenticated)?.profile?.currency ?: "USD"
+    }
+
+    var showAddWalletDialog by remember { mutableStateOf(false) }
+    var accountToEdit by remember { mutableStateOf<LocalAccount?>(null) }
+
+    Scaffold(
+        containerColor = AppBg,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddWalletDialog = true },
+                containerColor = AccentColor,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Wallet")
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(AppBg)
+                .padding(16.dp)
+        ) {
+            Text("Wallets & Accounts", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
+            if (accounts.isNotEmpty()) {
+                Text(
+                    "Long-press a wallet to edit or archive it",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            if (accounts.isEmpty()) {
+                OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAddWalletDialog = true },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Box(modifier = Modifier.padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No wallets created yet. Tap '+' to configure.", color = TextSecondary, fontSize = 14.sp)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(accounts) { acc ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = {},
+                                    onLongClick = { accountToEdit = acc }
+                                ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = acc.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = acc.type.replace("_", " ").uppercase(),
+                                        fontSize = 10.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Text(
+                                    text = formatCents(acc.balance, currency),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = if (acc.balance < 0) DangerColor else AccentColor
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -970,7 +1053,7 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddTxDialog = true },
-                containerColor = Color(0xFFE0263B),
+                containerColor = AccentColor,
                 contentColor = Color.White
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Transaction")
@@ -981,10 +1064,10 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFF120A0C))
+                .background(AppBg)
                 .padding(16.dp)
         ) {
-            Text("Ledger History", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFFF5EAEC))
+            Text("Ledger History", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
             Spacer(modifier = Modifier.height(12.dp))
 
             // Wallet Horizontal Filtering Bar
@@ -1012,7 +1095,7 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
 
             if (txs.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No transactions logged. Tap '+' to create.", color = Color(0xFFB9A3A7))
+                    Text("No transactions logged. Tap '+' to create.", color = TextSecondary)
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1021,7 +1104,7 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
                         val matchingWallet = accounts.find { it.id == tx.accountId }
 
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215)),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceColor),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(
@@ -1050,13 +1133,13 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
                                         text = tx.description,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
-                                        color = Color(0xFFF5EAEC)
+                                        color = TextPrimary
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
                                             text = matchingWallet?.name ?: tx.type.uppercase(),
                                             fontSize = 11.sp,
-                                            color = Color(0xFFB9A3A7)
+                                            color = TextSecondary
                                         )
                                         if (tx.fee > 0) {
                                             Text(
@@ -1070,7 +1153,7 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
                                 Text(
                                     text = (if (tx.type == "expense") "-" else "+") + formatCents(tx.amount, currency),
                                     fontWeight = FontWeight.Bold,
-                                    color = if (tx.type == "expense") Color(0xFFFF4655) else Color(0xFF34D399),
+                                    color = if (tx.type == "expense") DangerColor else SuccessColor,
                                     fontSize = 14.sp
                                 )
                             }
@@ -1242,7 +1325,7 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
             if (activeDebt == null) {
                 FloatingActionButton(
                     onClick = { showAddDebtDialog = true },
-                    containerColor = Color(0xFFE0263B),
+                    containerColor = AccentColor,
                     contentColor = Color.White
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Debt Log")
@@ -1254,7 +1337,7 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF120A0C))
+                .background(AppBg)
                 .padding(16.dp)
         ) {
             if (activeDebt != null) {
@@ -1267,29 +1350,29 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Debt Details", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFFF5EAEC))
+                    Text("Debt Details", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextPrimary)
                 }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+                    colors = CardDefaults.cardColors(containerColor = SurfaceColor)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(activeDebt.personName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
-                        Text("Type: ${activeDebt.type.uppercase()}", fontSize = 13.sp, color = Color(0xFFB9A3A7))
+                        Text(activeDebt.personName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
+                        Text("Type: ${activeDebt.type.uppercase()}", fontSize = 13.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
-                                Text("Total", fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                                Text("Total", fontSize = 11.sp, color = TextSecondary)
                                 Text(formatCents(activeDebt.totalAmount, currency), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("Remaining", fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                                Text("Remaining", fontSize = 11.sp, color = TextSecondary)
                                 Text(
                                     text = formatCents(activeDebt.remainingAmount, currency),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
-                                    color = if (activeDebt.remainingAmount > 0) Color(0xFFFF4655) else Color(0xFF34D399)
+                                    color = if (activeDebt.remainingAmount > 0) DangerColor else SuccessColor
                                 )
                             }
                         }
@@ -1298,7 +1381,7 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                             Button(
                                 onClick = { showRepayDialog = true },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                             ) {
                                 Text("Record Repayment Settlement")
                             }
@@ -1307,11 +1390,11 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Repayment Transactions Log", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("Repayment Transactions Log", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
 
                 if (repayments.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No repayments documented yet.", color = Color(0xFFB9A3A7))
+                        Text("No repayments documented yet.", color = TextSecondary)
                     }
                 } else {
                     LazyColumn(modifier = Modifier.padding(top = 8.dp)) {
@@ -1324,12 +1407,12 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                             ) {
                                 Column {
                                     Text("Repayment Received", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(rep.date, fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                                    Text(rep.date, fontSize = 11.sp, color = TextSecondary)
                                 }
                                 Text(
                                     formatCents(rep.amount, currency),
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF34D399)
+                                    color = SuccessColor
                                 )
                             }
                         }
@@ -1338,18 +1421,18 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
 
             } else {
                 // List of Debts
-                Text("Debts Ledger", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFFF5EAEC))
+                Text("Debts Ledger", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (debts.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No active or completed debts on record.", color = Color(0xFFB9A3A7))
+                        Text("No active or completed debts on record.", color = TextSecondary)
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(debts) { d ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215)),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { viewModel.selectDebt(d.id) }
@@ -1362,15 +1445,15 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
-                                        Text(d.personName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
-                                        Text("Type: ${d.type.uppercase()} (Due: ${d.dueDate})", fontSize = 12.sp, color = Color(0xFFB9A3A7))
+                                        Text(d.personName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                                        Text("Type: ${d.type.uppercase()} (Due: ${d.dueDate})", fontSize = 12.sp, color = TextSecondary)
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = formatCents(d.remainingAmount, currency),
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp,
-                                            color = if (d.status == "settled") Color(0xFF34D399) else Color(0xFFFF4655)
+                                            color = if (d.status == "settled") SuccessColor else DangerColor
                                         )
                                         Text(d.status.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -1553,7 +1636,7 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
             if (activeCreditor == null) {
                 FloatingActionButton(
                     onClick = { showAddCreditorDialog = true },
-                    containerColor = Color(0xFFE0263B),
+                    containerColor = AccentColor,
                     contentColor = Color.White
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Store Creditor")
@@ -1565,7 +1648,7 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF120A0C))
+                .background(AppBg)
                 .padding(16.dp)
         ) {
             if (activeCreditor != null) {
@@ -1577,35 +1660,35 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Store Tab Details", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFFF5EAEC))
+                    Text("Store Tab Details", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = TextPrimary)
                 }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+                    colors = CardDefaults.cardColors(containerColor = SurfaceColor)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(activeCreditor.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
+                        Text(activeCreditor.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Outstanding Tab Debt: " + formatCents(activeCreditor.outstandingDebt, currency),
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
-                            color = Color(0xFFFF4655)
+                            color = DangerColor
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
                                 onClick = { showPurchaseDialog = true },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                             ) {
                                 Text("New Purchase", fontSize = 12.sp)
                             }
                             Button(
                                 onClick = { showSettleDialog = true },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB9A3A7))
+                                colors = ButtonDefaults.buttonColors(containerColor = TextSecondary)
                             ) {
                                 Text("Settle/Pay Off", fontSize = 12.sp)
                             }
@@ -1614,10 +1697,10 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Tab Purchases Log", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("Tab Purchases Log", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
 
                 if (purchases.isEmpty()) {
-                    Text("No purchases logged on this tab yet.", fontSize = 13.sp, color = Color(0xFFB9A3A7), modifier = Modifier.padding(top = 8.dp))
+                    Text("No purchases logged on this tab yet.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 8.dp))
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(purchases) { pur ->
@@ -1629,12 +1712,12 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                             ) {
                                 Column {
                                     Text(pur.description, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(pur.date, fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                                    Text(pur.date, fontSize = 11.sp, color = TextSecondary)
                                 }
                                 Text(
                                     formatCents(pur.amount, currency),
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFF4655)
+                                    color = DangerColor
                                 )
                             }
                         }
@@ -1642,10 +1725,10 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Tab Settlements", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("Tab Settlements", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
 
                 if (settlements.isEmpty()) {
-                    Text("No payments have been settled on this tab.", fontSize = 13.sp, color = Color(0xFFB9A3A7), modifier = Modifier.padding(top = 8.dp))
+                    Text("No payments have been settled on this tab.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 8.dp))
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(settlements) { set ->
@@ -1657,12 +1740,12 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                             ) {
                                 Column {
                                     Text("Settlement Payment", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(set.date, fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                                    Text(set.date, fontSize = 11.sp, color = TextSecondary)
                                 }
                                 Text(
                                     formatCents(set.amountPaid, currency),
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF34D399)
+                                    color = SuccessColor
                                 )
                             }
                         }
@@ -1670,18 +1753,18 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 }
 
             } else {
-                Text("Shop Creditors (Tabs)", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFFF5EAEC))
+                Text("Shop Creditors (Tabs)", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (creditors.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No shop creditor tabs logged.", color = Color(0xFFB9A3A7))
+                        Text("No shop creditor tabs logged.", color = TextSecondary)
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(creditors) { cr ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215)),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { viewModel.selectCreditor(cr.id) }
@@ -1694,8 +1777,8 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text(cr.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
-                                        Text("Outstanding Tab: " + formatCents(cr.outstandingDebt, currency), fontSize = 12.sp, color = Color(0xFFB9A3A7))
+                                        Text(cr.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                                        Text("Outstanding Tab: " + formatCents(cr.outstandingDebt, currency), fontSize = 12.sp, color = TextSecondary)
                                     }
                                     Icon(Icons.Default.ChevronRight, contentDescription = null)
                                 }
@@ -1867,20 +1950,20 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF120A0C))
+            .background(AppBg)
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text("Financial Analytics & Statement", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFFF5EAEC))
+        Text("Financial Analytics & Statement", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
         Spacer(modifier = Modifier.height(16.dp))
 
         // Donut / Pie Progress Representation for Category Expenses
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Category Expense Allocation", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("Category Expense Allocation", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 val breakdown = report?.categoryBreakdown.orEmpty().filter { it.amountCents > 0 }
@@ -1888,7 +1971,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                     Text(
                         "No expenses recorded yet — this fills in once you log a transaction.",
                         fontSize = 12.sp,
-                        color = Color(0xFFB9A3A7)
+                        color = TextSecondary
                     )
                 } else {
                     breakdown.forEach { entry ->
@@ -1904,8 +1987,8 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(entry.categoryName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF5EAEC))
-                                Text("${String.format(Locale.US, "%.1f", entry.percentage)}%", fontSize = 13.sp, color = Color(0xFFB9A3A7))
+                                Text(entry.categoryName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                                Text("${String.format(Locale.US, "%.1f", entry.percentage)}%", fontSize = 13.sp, color = TextSecondary)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             LinearProgressIndicator(
@@ -1915,7 +1998,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
                                 color = color,
-                                trackColor = Color(0xFF2C1A1E)
+                                trackColor = BorderColor
                             )
                         }
                     }
@@ -1928,10 +2011,10 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
         // Custom Cash Flow Chart (Simple column heights inside a row)
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("7-Month Cash Flow Trends", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("7-Month Cash Flow Trends", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
                 Spacer(modifier = Modifier.height(20.dp))
 
                 val cashFlow = report?.cashFlow.orEmpty()
@@ -1941,7 +2024,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                     Text(
                         "No cash flow yet — this fills in as you log income and expenses.",
                         fontSize = 12.sp,
-                        color = Color(0xFFB9A3A7)
+                        color = TextSecondary
                     )
                 } else {
                     Row(
@@ -1972,7 +2055,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                                                     ((cf.income.toDouble() / maxCashFlowValue.toDouble()) * 100).coerceIn(4.0, 100.0)
                                                 else 0.0).dp
                                             )
-                                            .background(Color(0xFFE0263B), RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                            .background(AccentColor, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
                                     )
                                     // Expense bar
                                     Box(
@@ -1983,11 +2066,11 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                                                     ((cf.expense.toDouble() / maxCashFlowValue.toDouble()) * 100).coerceIn(4.0, 100.0)
                                                 else 0.0).dp
                                             )
-                                            .background(Color(0xFFFF4655), RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                            .background(DangerColor, RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(cf.month, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFB9A3A7))
+                                Text(cf.month, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                             }
                         }
                     }
@@ -1998,13 +2081,13 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.size(10.dp).background(Color(0xFFE0263B)))
+                    Box(modifier = Modifier.size(10.dp).background(AccentColor))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Inflow", fontSize = 10.sp, color = Color(0xFFB9A3A7))
+                    Text("Inflow", fontSize = 10.sp, color = TextSecondary)
                     Spacer(modifier = Modifier.width(16.dp))
-                    Box(modifier = Modifier.size(10.dp).background(Color(0xFFFF4655)))
+                    Box(modifier = Modifier.size(10.dp).background(DangerColor))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Outflow", fontSize = 10.sp, color = Color(0xFFB9A3A7))
+                    Text("Outflow", fontSize = 10.sp, color = TextSecondary)
                 }
             }
         }
@@ -2012,7 +2095,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
         Spacer(modifier = Modifier.height(24.dp))
 
         // Exporter Controls block
-        Text("Generate Statements", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
+        Text("Generate Statements", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2021,7 +2104,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             Button(
                 onClick = { viewModel.exportTransactions("csv", null, null, null, null, null) },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
             ) {
                 Icon(Icons.Default.Download, contentDescription = null)
                 Spacer(modifier = Modifier.width(4.dp))
@@ -2030,7 +2113,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             Button(
                 onClick = { viewModel.exportTransactions("pdf", null, null, null, null, null) },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB9A3A7))
+                colors = ButtonDefaults.buttonColors(containerColor = TextSecondary)
             ) {
                 Icon(Icons.Default.PictureAsPdf, contentDescription = null)
                 Spacer(modifier = Modifier.width(4.dp))
@@ -2069,22 +2152,58 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF120A0C))
+            .background(AppBg)
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text("Profile & System Settings", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Color(0xFFF5EAEC))
+        Text("Profile & System Settings", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
+
+        val isDarkTheme by viewModel.darkTheme.collectAsState()
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+                        contentDescription = null,
+                        tint = AccentColor
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Dark Mode", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                        Text(
+                            if (isDarkTheme) "On — switch to light theme" else "Off — switch to dark theme",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+                Switch(
+                    checked = isDarkTheme,
+                    onCheckedChange = { viewModel.setDarkTheme(it) },
+                    colors = SwitchDefaults.colors(checkedTrackColor = AccentColor)
+                )
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Personal Parameters", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("Personal Parameters", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
 
                 OutlinedTextField(
                     value = name,
@@ -2110,7 +2229,7 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
                 Button(
                     onClick = { viewModel.updateProfile(name, currency, timezone) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                 ) {
                     Text("Update Personal Profile", color = Color.White)
                 }
@@ -2119,13 +2238,13 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Change Passcode Identity", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
+                Text("Change Passcode Identity", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
 
                 OutlinedTextField(
                     value = oldPassword,
@@ -2160,7 +2279,7 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                 ) {
                     Text("Apply Passcode Security", color = Color.White)
                 }
@@ -2182,7 +2301,7 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onNavigateToCategories),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
         ) {
             Row(
                 modifier = Modifier
@@ -2192,21 +2311,21 @@ fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Un
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Category, contentDescription = null, tint = Color(0xFFE0263B))
+                    Icon(Icons.Default.Category, contentDescription = null, tint = AccentColor)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Categories", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFFF5EAEC))
-                        Text("Manage income & expense tags", fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                        Text("Categories", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                        Text("Manage income & expense tags", fontSize = 11.sp, color = TextSecondary)
                     }
                 }
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFFB9A3A7))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary)
             }
         }
 
         Button(
             onClick = { viewModel.logout() },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF4655))
+            colors = ButtonDefaults.buttonColors(containerColor = DangerColor)
         ) {
             Icon(Icons.Default.ExitToApp, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))

@@ -3,6 +3,7 @@ package com.example.data
 import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
@@ -47,6 +49,14 @@ class FinanceRepository(private val context: Context) {
         val EMAIL = stringPreferencesKey("email")
         val CURRENCY = stringPreferencesKey("currency")
         val TIMEZONE = stringPreferencesKey("timezone")
+        val DARK_THEME = booleanPreferencesKey("dark_theme")
+    }
+
+    val darkThemeFlow: kotlinx.coroutines.flow.Flow<Boolean> =
+        context.sessionDataStore.data.map { it[Keys.DARK_THEME] ?: true }
+
+    suspend fun setDarkTheme(enabled: Boolean) {
+        context.sessionDataStore.edit { it[Keys.DARK_THEME] = enabled }
     }
 
     private val moshi = Moshi.Builder()
@@ -221,7 +231,12 @@ class FinanceRepository(private val context: Context) {
     suspend fun logout() = withContext(Dispatchers.IO) {
         authToken = null
         apiService = null
-        context.sessionDataStore.edit { it.clear() }
+        context.sessionDataStore.edit { prefs ->
+            // Keep the theme preference — it's a device setting, not part of the session.
+            val darkTheme = prefs[Keys.DARK_THEME]
+            prefs.clear()
+            if (darkTheme != null) prefs[Keys.DARK_THEME] = darkTheme
+        }
         _userProfile.value = null
         _accounts.value = emptyList()
         _categories.value = emptyList()

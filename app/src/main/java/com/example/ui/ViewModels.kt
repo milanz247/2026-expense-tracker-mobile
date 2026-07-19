@@ -26,6 +26,14 @@ class FinanceViewModel(
     private val _events = MutableSharedFlow<String>(replay = 0)
     val events: SharedFlow<String> = _events.asSharedFlow()
 
+    // --- Theme (device-level preference, independent of login session) ---
+    val darkTheme: StateFlow<Boolean> = repository.darkThemeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setDarkTheme(enabled: Boolean) {
+        viewModelScope.launch { repository.setDarkTheme(enabled) }
+    }
+
     private fun launchGuarded(block: suspend () -> Unit) {
         viewModelScope.launch {
             try {

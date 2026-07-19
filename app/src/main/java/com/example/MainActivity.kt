@@ -37,14 +37,15 @@ class MainActivity : ComponentActivity() {
         val repository = FinanceRepository(applicationContext)
 
         setContent {
-            MyApplicationTheme {
-                val viewModel: FinanceViewModel by viewModels {
-                    FinanceViewModelFactory(application, repository)
-                }
+            val viewModel: FinanceViewModel by viewModels {
+                FinanceViewModelFactory(application, repository)
+            }
+            val isDarkTheme by viewModel.darkTheme.collectAsState()
 
+            MyApplicationTheme(darkTheme = isDarkTheme) {
                 val authState by viewModel.authState.collectAsState()
                 var currentScreen by remember { mutableStateOf("login") }
-                var activeTab by remember { mutableIntStateOf(0) } // 0: Dashboard, 1: Ledger, 2: Debts, 3: Store Tabs, 4: Reports, 5: Settings
+                var activeTab by remember { mutableIntStateOf(0) } // 0: Dashboard, 1: Wallets, 2: Ledger, 3: Debts, 4: Store Tabs, 5: Reports
                 var isNavigatingToSettings by remember { mutableStateOf(false) }
                 var isNavigatingToCategories by remember { mutableStateOf(false) }
 
@@ -95,10 +96,10 @@ class MainActivity : ComponentActivity() {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color(0xFF120A0C)),
+                                .background(AppBg),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = Color(0xFFE0263B))
+                            CircularProgressIndicator(color = AccentColor)
                         }
                     }
                     is AuthState.Authenticated -> {
@@ -107,12 +108,12 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .testTag("main_scaffold"),
-                            containerColor = Color(0xFF120A0C),
+                            containerColor = AppBg,
                             topBar = {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(Color(0xFF120A0C))
+                                        .background(AppBg)
                                         .statusBarsPadding()
                                         .padding(horizontal = 16.dp, vertical = 12.dp)
                                 ) {
@@ -126,13 +127,13 @@ class MainActivity : ComponentActivity() {
                                                 text = "PLANETARY FINANCE",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFE0263B)
+                                                color = AccentColor
                                             )
                                             Text(
                                                 text = "Hello, ${state.profile.name}",
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFF5EAEC)
+                                                color = TextPrimary
                                             )
                                         }
 
@@ -151,7 +152,7 @@ class MainActivity : ComponentActivity() {
                                                 Icon(
                                                     imageVector = if (showingSubScreen) Icons.Default.Close else Icons.Default.Settings,
                                                     contentDescription = "Settings",
-                                                    tint = Color(0xFFB9A3A7)
+                                                    tint = TextSecondary
                                                 )
                                             }
                                         }
@@ -163,7 +164,7 @@ class MainActivity : ComponentActivity() {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(Color(0xFF1E1215))
+                                            .background(SurfaceColor)
                                             .navigationBarsPadding()
                                             .height(80.dp)
                                             .padding(horizontal = 8.dp),
@@ -172,10 +173,11 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         listOf(
                                             Triple("Overview", Icons.Default.Dashboard, 0),
-                                            Triple("Ledger", Icons.Default.ReceiptLong, 1),
-                                            Triple("Debts", Icons.Default.Handshake, 2),
-                                            Triple("Store Tabs", Icons.Default.LocalMall, 3),
-                                            Triple("Reports", Icons.Default.BarChart, 4)
+                                            Triple("Wallets", Icons.Default.AccountBalanceWallet, 1),
+                                            Triple("Ledger", Icons.Default.ReceiptLong, 2),
+                                            Triple("Debts", Icons.Default.Handshake, 3),
+                                            Triple("Store", Icons.Default.LocalMall, 4),
+                                            Triple("Reports", Icons.Default.BarChart, 5)
                                         ).forEach { (label, icon, index) ->
                                             val isSelected = activeTab == index
                                             Column(
@@ -186,26 +188,26 @@ class MainActivity : ComponentActivity() {
                                                     .clickable {
                                                         activeTab = index
                                                     }
-                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                    .padding(horizontal = 6.dp, vertical = 6.dp)
                                             ) {
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(20.dp))
-                                                        .background(if (isSelected) Color(0xFF3A131A) else Color.Transparent)
+                                                        .background(if (isSelected) AccentMuted else Color.Transparent)
                                                         .padding(horizontal = 20.dp, vertical = 4.dp),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
                                                         imageVector = icon,
                                                         contentDescription = label,
-                                                        tint = if (isSelected) Color(0xFFFFC4CA) else Color(0xFFB9A3A7),
+                                                        tint = if (isSelected) AccentOnMuted else TextSecondary,
                                                         modifier = Modifier.size(24.dp)
                                                     )
                                                 }
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(
                                                     text = label,
-                                                    color = if (isSelected) Color(0xFFFFC4CA) else Color(0xFFB9A3A7),
+                                                    color = if (isSelected) AccentOnMuted else TextSecondary,
                                                     fontSize = 11.sp,
                                                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
                                                 )
@@ -234,12 +236,14 @@ class MainActivity : ComponentActivity() {
                                     when (activeTab) {
                                         0 -> DashboardScreen(
                                             viewModel = viewModel,
-                                            onNavigateToTransactions = { activeTab = 1 }
+                                            onNavigateToTransactions = { activeTab = 2 },
+                                            onNavigateToWallets = { activeTab = 1 }
                                         )
-                                        1 -> TransactionsScreen(viewModel = viewModel)
-                                        2 -> DebtsScreen(viewModel = viewModel)
-                                        3 -> StoreTabsScreen(viewModel = viewModel)
-                                        4 -> ReportsScreen(viewModel = viewModel)
+                                        1 -> WalletsScreen(viewModel = viewModel)
+                                        2 -> TransactionsScreen(viewModel = viewModel)
+                                        3 -> DebtsScreen(viewModel = viewModel)
+                                        4 -> StoreTabsScreen(viewModel = viewModel)
+                                        5 -> ReportsScreen(viewModel = viewModel)
                                     }
                                 }
                             }
