@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
-
-    <!-- MainActivity's launch theme (androidx.core:core-splashscreen). Swapped for
-         Theme.MyApplication automatically once installSplashScreen()'s keep-on-screen
-         condition returns false — see MainActivity.onCreate. -->
-    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
-        <item name="postSplashScreenTheme">@style/Theme.MyApplication</item>
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#FF120A0C</item>
+        <item name="android:statusBarColor">#FF120A0C</item>
+        <item name="android:navigationBarColor">#FF120A0C</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

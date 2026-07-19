@@ -1,103 +1,36 @@
 package com.example.ui.theme
 
-import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
+import androidx.compose.ui.graphics.Color
+
+private val NoirColorScheme =
+  darkColorScheme(
+    primary = NoirPrimary,
+    onPrimary = Color.White,
+    primaryContainer = NoirPrimaryContainer,
+    onPrimaryContainer = NoirOnPrimaryContainer,
+    secondary = NoirTextSecondary,
+    secondaryContainer = NoirSecondaryContainer,
+    background = NoirBg,
+    surface = NoirBg,
+    surfaceVariant = NoirSurface,
+    onBackground = NoirText,
+    onSurface = NoirText,
+    error = Color(0xFFFF4655),
+    outline = NoirBorder,
+  )
 
 /**
- * Named corner-radius scale shared by every screen. Centralizing this is what lets "large" mean
- * the same radius everywhere a card/sheet/dialog needs it, instead of each screen picking its own
- * ad hoc dp value.
+ * The app is deliberately always dark with a red (crimson) accent — this is
+ * a fixed design choice, not something that follows the system theme.
  */
-val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp),
-)
-
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
-
-/** Resolves the user's theme preference against the current system setting. */
-@Composable
-fun resolveDarkTheme(themeMode: ThemeMode): Boolean {
-    val systemDark = isSystemInDarkTheme()
-    return when (themeMode) {
-        ThemeMode.SYSTEM -> systemDark
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-    }
-}
-
-private fun materialScheme(colors: AppColors, dark: Boolean) = if (dark) {
-    darkColorScheme(
-        primary = colors.accent,
-        onPrimary = colors.onAccent,
-        secondary = colors.accent,
-        onSecondary = colors.onAccent,
-        background = colors.background,
-        onBackground = colors.onBackground,
-        surface = colors.surface,
-        onSurface = colors.onBackground,
-        surfaceVariant = colors.surfaceVariant,
-        onSurfaceVariant = colors.textSecondary,
-        outline = colors.outline,
-        outlineVariant = colors.outline,
-        error = colors.error,
-    )
-} else {
-    lightColorScheme(
-        primary = colors.accent,
-        onPrimary = colors.onAccent,
-        secondary = colors.accent,
-        onSecondary = colors.onAccent,
-        background = colors.background,
-        onBackground = colors.onBackground,
-        surface = colors.surface,
-        onSurface = colors.onBackground,
-        surfaceVariant = colors.surfaceVariant,
-        onSurfaceVariant = colors.textSecondary,
-        outline = colors.outline,
-        outlineVariant = colors.outline,
-        error = colors.error,
-    )
-}
-
 @Composable
 fun MyApplicationTheme(
-    themeMode: ThemeMode = ThemeMode.SYSTEM,
-    content: @Composable () -> Unit,
+  darkTheme: Boolean = true,
+  dynamicColor: Boolean = false,
+  content: @Composable () -> Unit,
 ) {
-    val darkTheme = resolveDarkTheme(themeMode)
-    val appColors = if (darkTheme) DarkAppColors else LightAppColors
-
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !darkTheme
-            controller.isAppearanceLightNavigationBars = !darkTheme
-        }
-    }
-
-    CompositionLocalProvider(LocalAppColors provides appColors) {
-        MaterialTheme(
-            colorScheme = materialScheme(appColors, darkTheme),
-            typography = Typography,
-            shapes = AppShapes,
-            content = content
-        )
-    }
+  MaterialTheme(colorScheme = NoirColorScheme, typography = Typography, content = content)
 }

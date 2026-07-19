@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Finance Tracker"
+rootProject.name = "Planetary Finance"
 
 include(":app")

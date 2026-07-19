@@ -1,6 +1,6 @@
 {
-  "name": "Finance Tracker",
-  "description": "A premium monochromatic companion for your Financial Expenses & Income Tracker featuring modern secure JWT auth and a high-thinking Gemini AI helper.",
+  "name": "Planetary Finance",
+  "description": "Secure Personal Finance Management System featuring account ledgers, categories, debt registry, shop credit tabs, and CSV/PDF statements.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
