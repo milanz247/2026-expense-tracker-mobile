@@ -43,7 +43,6 @@ class FinanceRepository(private val context: Context) {
 
     private object Keys {
         val TOKEN = stringPreferencesKey("token")
-        val BASE_URL = stringPreferencesKey("base_url")
         val NAME = stringPreferencesKey("name")
         val EMAIL = stringPreferencesKey("email")
         val CURRENCY = stringPreferencesKey("currency")
@@ -90,10 +89,9 @@ class FinanceRepository(private val context: Context) {
     private suspend fun restoreSession() {
         val prefs = context.sessionDataStore.data.first()
         val token = prefs[Keys.TOKEN]
-        val url = prefs[Keys.BASE_URL]
-        if (token != null && url != null) {
+        if (token != null) {
             authToken = token
-            baseServerUrl = url
+            baseServerUrl = com.example.BuildConfig.API_BASE_URL
             rebuildApiService()
             _userProfile.value = LocalUserProfile(
                 name = prefs[Keys.NAME] ?: "",
@@ -101,7 +99,7 @@ class FinanceRepository(private val context: Context) {
                 currency = prefs[Keys.CURRENCY] ?: "USD",
                 timezone = prefs[Keys.TIMEZONE] ?: "Asia/Colombo",
                 token = token,
-                baseServerUrl = url
+                baseServerUrl = baseServerUrl
             )
             try {
                 refreshAll()
@@ -114,7 +112,6 @@ class FinanceRepository(private val context: Context) {
     private suspend fun persistSession(profile: LocalUserProfile) {
         context.sessionDataStore.edit { p ->
             p[Keys.TOKEN] = profile.token
-            p[Keys.BASE_URL] = profile.baseServerUrl
             p[Keys.NAME] = profile.name
             p[Keys.EMAIL] = profile.email
             p[Keys.CURRENCY] = profile.currency
@@ -190,16 +187,16 @@ class FinanceRepository(private val context: Context) {
     // Auth & Profile
     // ==========================================
 
-    suspend fun register(name: String, email: String, password: String, currency: String, serverUrl: String) {
-        baseServerUrl = serverUrl
+    suspend fun register(name: String, email: String, password: String, currency: String) {
+        baseServerUrl = com.example.BuildConfig.API_BASE_URL
         rebuildApiService()
         call { it.register(RegisterRequest(name, email, password, currency)) }
         // Registration doesn't return a session token, so log in immediately after.
-        login(email, password, serverUrl)
+        login(email, password)
     }
 
-    suspend fun login(email: String, password: String, serverUrl: String) {
-        baseServerUrl = serverUrl
+    suspend fun login(email: String, password: String) {
+        baseServerUrl = com.example.BuildConfig.API_BASE_URL
         rebuildApiService()
         val response = call { it.login(LoginRequest(email, password)) }
         authToken = response.token
@@ -210,7 +207,7 @@ class FinanceRepository(private val context: Context) {
             currency = response.user.currency,
             timezone = "Asia/Colombo",
             token = response.token,
-            baseServerUrl = serverUrl
+            baseServerUrl = baseServerUrl
         )
         persistSession(profile)
         _userProfile.value = profile

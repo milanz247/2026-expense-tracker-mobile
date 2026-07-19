@@ -52,22 +52,22 @@ class FinanceViewModel(
         }
     }
 
-    fun register(name: String, email: String, password: String, currency: String, serverUrl: String) {
+    fun register(name: String, email: String, password: String, currency: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                repository.register(name, email, password, currency, serverUrl)
+                repository.register(name, email, password, currency)
             } catch (e: ApiException) {
                 _authState.value = AuthState.Error(e.message ?: "Registration failed.")
             }
         }
     }
 
-    fun login(email: String, password: String, serverUrl: String) {
+    fun login(email: String, password: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                repository.login(email, password, serverUrl)
+                repository.login(email, password)
             } catch (e: ApiException) {
                 _authState.value = AuthState.Error(e.message ?: "Authentication failed.")
             }

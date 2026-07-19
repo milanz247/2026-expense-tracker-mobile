@@ -106,7 +106,6 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("milanmadusankamms@gmail.com") }
     var password by remember { mutableStateOf("secure_password123") }
-    var serverUrl by remember { mutableStateOf(com.example.BuildConfig.API_BASE_URL) }
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
 
@@ -175,25 +174,13 @@ fun LoginScreen(
                     focusedLabelColor = Color(0xFFE0263B)
                 )
             )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = serverUrl,
-                onValueChange = { serverUrl = it },
-                label = { Text("Backend Server URL") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
-                )
-            )
             Spacer(modifier = Modifier.height(24.dp))
 
             if (authState is AuthState.Loading) {
                 CircularProgressIndicator(color = Color(0xFFE0263B))
             } else {
                 Button(
-                    onClick = { viewModel.login(email, password, serverUrl) },
+                    onClick = { viewModel.login(email, password) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
                 ) {
@@ -218,7 +205,6 @@ fun RegisterScreen(
     var email by remember { mutableStateOf("milanmadusankamms@gmail.com") }
     var password by remember { mutableStateOf("secure_password123") }
     var currency by remember { mutableStateOf("USD") }
-    var serverUrl by remember { mutableStateOf(com.example.BuildConfig.API_BASE_URL) }
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
 
@@ -305,25 +291,13 @@ fun RegisterScreen(
                     focusedLabelColor = Color(0xFFE0263B)
                 )
             )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = serverUrl,
-                onValueChange = { serverUrl = it },
-                label = { Text("Server Base URL") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE0263B),
-                    focusedLabelColor = Color(0xFFE0263B)
-                )
-            )
             Spacer(modifier = Modifier.height(24.dp))
 
             if (authState is AuthState.Loading) {
                 CircularProgressIndicator(color = Color(0xFFE0263B))
             } else {
                 Button(
-                    onClick = { viewModel.register(name, email, password, currency, serverUrl) },
+                    onClick = { viewModel.register(name, email, password, currency) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0263B))
                 ) {
