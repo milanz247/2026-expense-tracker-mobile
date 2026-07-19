@@ -203,7 +203,7 @@ class FinanceRepository(private val context: Context) {
         rebuildApiService()
         val profile = LocalUserProfile(
             name = response.user.name,
-            email = response.user.email,
+            email = email,
             currency = response.user.currency,
             timezone = "Asia/Colombo",
             token = response.token,

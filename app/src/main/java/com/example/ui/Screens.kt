@@ -125,6 +125,117 @@ fun RequiredFieldLabel(text: String, satisfied: Boolean) {
     )
 }
 
+/**
+ * Standard tap-to-open dropdown for picking one item out of a list —
+ * used everywhere a dialog previously made you scan a horizontal row of
+ * chips for a wallet or category. Shows an optional leading icon/color
+ * per item so a category dropdown can carry its icon along with it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> DropdownSelector(
+    label: String,
+    items: List<T>,
+    selected: T?,
+    onSelect: (T) -> Unit,
+    itemLabel: (T) -> String,
+    modifier: Modifier = Modifier,
+    required: Boolean = true,
+    emptyMessage: String = "Nothing available yet.",
+    itemIcon: ((T) -> ImageVector)? = null,
+    itemColor: ((T) -> Color)? = null
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier) {
+        RequiredFieldLabel(label, satisfied = !required || selected != null)
+        if (items.isEmpty()) {
+            Text(emptyMessage, fontSize = 12.sp, color = TextSecondary)
+        } else {
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                OutlinedTextField(
+                    value = selected?.let(itemLabel) ?: "Tap to select",
+                    onValueChange = {},
+                    readOnly = true,
+                    singleLine = true,
+                    leadingIcon = if (selected != null && itemIcon != null) {
+                        {
+                            Icon(
+                                itemIcon(selected),
+                                contentDescription = null,
+                                tint = itemColor?.invoke(selected) ?: AccentColor
+                            )
+                        }
+                    } else null,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    items.forEach { item ->
+                        DropdownMenuItem(
+                            text = { Text(itemLabel(item)) },
+                            leadingIcon = itemIcon?.let { getIcon ->
+                                {
+                                    Icon(
+                                        getIcon(item),
+                                        contentDescription = null,
+                                        tint = itemColor?.invoke(item) ?: TextSecondary
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onSelect(item)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A big, unmistakably-obvious two-way choice (e.g. lent vs. borrowed money). */
+@Composable
+fun DirectionOption(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) AccentColor else SurfaceColor)
+            .border(
+                width = 1.dp,
+                color = if (selected) AccentColor else BorderColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 8.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (selected) Color.White else TextSecondary,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) Color.White else TextSecondary,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
 // ==========================================
 // Color & Icon Helpers for Jetpack Compose
 // ==========================================
@@ -584,6 +695,60 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Category-wise spending breakdown
+        val breakdown = report?.categoryBreakdown.orEmpty().filter { it.amountCents > 0 }
+        if (breakdown.isNotEmpty()) {
+            Text("Spending by Category", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFFF5EAEC))
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    breakdown.take(6).forEach { entry ->
+                        val entryColor = remember(entry.color) {
+                            try { Color(android.graphics.Color.parseColor(entry.color)) } catch (e: Exception) { AccentColor }
+                        }
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(entryColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(entry.categoryName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                                }
+                                Text(
+                                    formatCents(entry.amountCents, currency),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = { (entry.percentage / 100.0).toFloat().coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = entryColor,
+                                trackColor = BorderColor
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
         // Recent Transaction Header
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1000,52 +1165,43 @@ fun TransactionsScreen(viewModel: FinanceViewModel) {
             )
 
             if (walletsAvailable) {
-                RequiredFieldLabel(
-                    if (isTransfer) "Source Account" else "Wallet",
-                    selectedWalletId != null
+                DropdownSelector(
+                    label = if (isTransfer) "Source Account" else "Wallet",
+                    items = accounts,
+                    selected = accounts.find { it.id == selectedWalletId },
+                    onSelect = { selectedWalletId = it.id },
+                    itemLabel = { it.name },
+                    modifier = Modifier.fillMaxWidth()
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(accounts) { acc ->
-                        ElevatedFilterChip(
-                            selected = selectedWalletId == acc.id,
-                            onClick = { selectedWalletId = acc.id },
-                            label = { Text(acc.name) }
-                        )
-                    }
-                }
             } else {
                 Text("No wallets yet — add one from the Overview tab first.", fontSize = 12.sp, color = DangerColor)
             }
 
             if (isTransfer) {
-                RequiredFieldLabel("Destination Account", selectedDestWalletId != null && selectedDestWalletId != selectedWalletId)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(accounts) { acc ->
-                        ElevatedFilterChip(
-                            selected = selectedDestWalletId == acc.id,
-                            onClick = { selectedDestWalletId = acc.id },
-                            label = { Text(acc.name) }
-                        )
-                    }
-                }
+                DropdownSelector(
+                    label = "Destination Account",
+                    items = accounts,
+                    selected = accounts.find { it.id == selectedDestWalletId },
+                    onSelect = { selectedDestWalletId = it.id },
+                    itemLabel = { it.name },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (!isTransfer) {
-                Text("Category (optional)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                 val matchingCats = categories.filter { it.type == txType }
-                if (matchingCats.isEmpty()) {
-                    Text("No $txType categories yet — add one in Settings.", fontSize = 11.sp, color = TextSecondary)
-                } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(matchingCats) { cat ->
-                            ElevatedFilterChip(
-                                selected = selectedCatId == cat.id,
-                                onClick = { selectedCatId = cat.id },
-                                label = { Text(cat.name) }
-                            )
-                        }
-                    }
-                }
+                DropdownSelector(
+                    label = "Category",
+                    items = matchingCats,
+                    selected = matchingCats.find { it.id == selectedCatId },
+                    onSelect = { selectedCatId = it.id },
+                    itemLabel = { it.name },
+                    itemIcon = { getIconForName(it.icon) },
+                    itemColor = { getColorForName(it.color) },
+                    required = false,
+                    emptyMessage = "No $txType categories yet — add one in the Categories tab.",
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             OutlinedTextField(
@@ -1268,16 +1424,23 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                 modifier = Modifier.fillMaxWidth()
             )
             Text("Direction", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ElevatedFilterChip(
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                DirectionOption(
+                    label = "I Lent Money",
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
                     selected = debtType == "lent",
                     onClick = { debtType = "lent" },
-                    label = { Text("I lent money") }
+                    modifier = Modifier.weight(1f)
                 )
-                ElevatedFilterChip(
+                DirectionOption(
+                    label = "I Borrowed Money",
+                    icon = Icons.AutoMirrored.Filled.TrendingDown,
                     selected = debtType == "borrowed",
                     onClick = { debtType = "borrowed" },
-                    label = { Text("I borrowed money") }
+                    modifier = Modifier.weight(1f)
                 )
             }
             RequiredFieldLabel("Amount", debtAmount != null && debtAmount > 0.0)
@@ -1290,16 +1453,14 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                 modifier = Modifier.fillMaxWidth()
             )
             if (debtWalletsAvailable) {
-                RequiredFieldLabel("Wallet", selectedWalletId != null)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(accounts) { acc ->
-                        ElevatedFilterChip(
-                            selected = selectedWalletId == acc.id,
-                            onClick = { selectedWalletId = acc.id },
-                            label = { Text(acc.name) }
-                        )
-                    }
-                }
+                DropdownSelector(
+                    label = "Wallet",
+                    items = accounts,
+                    selected = accounts.find { it.id == selectedWalletId },
+                    onSelect = { selectedWalletId = it.id },
+                    itemLabel = { it.name },
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 Text("No wallets yet — add one from the Overview tab first.", fontSize = 12.sp, color = DangerColor)
             }
@@ -1351,16 +1512,14 @@ fun DebtsScreen(viewModel: FinanceViewModel) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
-            RequiredFieldLabel("Paid From Wallet", selectedWalletId != null)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(accounts) { acc ->
-                    ElevatedFilterChip(
-                        selected = selectedWalletId == acc.id,
-                        onClick = { selectedWalletId = acc.id },
-                        label = { Text(acc.name) }
-                    )
-                }
-            }
+            DropdownSelector(
+                label = "Paid From Wallet",
+                items = accounts,
+                selected = accounts.find { it.id == selectedWalletId },
+                onSelect = { selectedWalletId = it.id },
+                itemLabel = { it.name },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -1585,7 +1744,7 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
             confirmLabel = "Confirm Purchase",
             confirmEnabled = purchaseVal != null && purchaseVal > 0.0 && selectedCatId != null,
             helperText = when {
-                expenseCats.isEmpty() -> "No expense categories yet — add one in Settings."
+                expenseCats.isEmpty() -> "No expense categories yet — add one in the Categories tab."
                 purchaseAmount.isNotBlank() && (purchaseVal == null || purchaseVal <= 0.0) -> "Enter a valid amount greater than 0."
                 else -> null
             },
@@ -1616,16 +1775,17 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            RequiredFieldLabel("Expense Category", selectedCatId != null)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(expenseCats) { cat ->
-                    ElevatedFilterChip(
-                        selected = selectedCatId == cat.id,
-                        onClick = { selectedCatId = cat.id },
-                        label = { Text(cat.name) }
-                    )
-                }
-            }
+            DropdownSelector(
+                label = "Expense Category",
+                items = expenseCats,
+                selected = expenseCats.find { it.id == selectedCatId },
+                onSelect = { selectedCatId = it.id },
+                itemLabel = { it.name },
+                itemIcon = { getIconForName(it.icon) },
+                itemColor = { getColorForName(it.color) },
+                emptyMessage = "No expense categories yet — add one in the Categories tab.",
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 
@@ -1671,16 +1831,14 @@ fun StoreTabsScreen(viewModel: FinanceViewModel) {
                 modifier = Modifier.fillMaxWidth()
             )
             if (settleWalletsAvailable) {
-                RequiredFieldLabel("Paid From Wallet", selectedWalletId != null)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(accounts) { acc ->
-                        ElevatedFilterChip(
-                            selected = selectedWalletId == acc.id,
-                            onClick = { selectedWalletId = acc.id },
-                            label = { Text(acc.name) }
-                        )
-                    }
-                }
+                DropdownSelector(
+                    label = "Paid From Wallet",
+                    items = accounts,
+                    selected = accounts.find { it.id == selectedWalletId },
+                    onSelect = { selectedWalletId = it.id },
+                    itemLabel = { it.name },
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 Text("No wallets yet — add one from the Overview tab first.", fontSize = 12.sp, color = DangerColor)
             }
@@ -1725,31 +1883,41 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                 Text("Category Expense Allocation", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
                 Spacer(modifier = Modifier.height(12.dp))
 
-                report?.categoryBreakdown?.forEach { entry ->
-                    val color = remember(entry.color) {
-                        try {
-                            Color(android.graphics.Color.parseColor(entry.color))
-                        } catch (e: Exception) {
-                            Color(0xFF8B5CF6)
+                val breakdown = report?.categoryBreakdown.orEmpty().filter { it.amountCents > 0 }
+                if (breakdown.isEmpty()) {
+                    Text(
+                        "No expenses recorded yet — this fills in once you log a transaction.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFB9A3A7)
+                    )
+                } else {
+                    breakdown.forEach { entry ->
+                        val color = remember(entry.color) {
+                            try {
+                                Color(android.graphics.Color.parseColor(entry.color))
+                            } catch (e: Exception) {
+                                Color(0xFF8B5CF6)
+                            }
                         }
-                    }
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(entry.categoryName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Text("${String.format(Locale.US, "%.1f", entry.percentage)}%", fontSize = 13.sp)
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(entry.categoryName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF5EAEC))
+                                Text("${String.format(Locale.US, "%.1f", entry.percentage)}%", fontSize = 13.sp, color = Color(0xFFB9A3A7))
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = { (entry.percentage / 100.0).toFloat().coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = color,
+                                trackColor = Color(0xFF2C1A1E)
+                            )
                         }
-                        LinearProgressIndicator(
-                            progress = { (entry.percentage / 100.0).toFloat().coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = color,
-                            trackColor = Color(0xFF2C1A1E)
-                        )
                     }
                 }
             }
@@ -1766,45 +1934,61 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                 Text("7-Month Cash Flow Trends", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    report?.cashFlow?.forEach { cf ->
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                val cashFlow = report?.cashFlow.orEmpty()
+                val maxCashFlowValue = cashFlow.flatMap { listOf(it.income, it.expense) }.maxOrNull()?.takeIf { it > 0 } ?: 1L
+
+                if (cashFlow.all { it.income == 0L && it.expense == 0L }) {
+                    Text(
+                        "No cash flow yet — this fills in as you log income and expenses.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFB9A3A7)
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        cashFlow.forEach { cf ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.weight(1f)
                             ) {
-                                // Income bar
-                                Box(
-                                    modifier = Modifier
-                                        .width(6.dp)
-                                        .height(
-                                            (((cf.income.toDouble() / 1000000.0) * 100)
-                                                .coerceIn(5.0, 100.0)).dp
-                                        )
-                                        .background(Color(0xFFE0263B), RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-                                )
-                                // Expense bar
-                                Box(
-                                    modifier = Modifier
-                                        .width(6.dp)
-                                        .height(
-                                            (((cf.expense.toDouble() / 1000000.0) * 100)
-                                                .coerceIn(5.0, 100.0)).dp
-                                        )
-                                        .background(Color(0xFFFF4655), RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    // Income bar — height is relative to the biggest value in
+                                    // this dataset, not a fixed divisor, so real amounts (which
+                                    // are usually well under $10k) still render visibly instead
+                                    // of collapsing to the same tiny sliver every time.
+                                    Box(
+                                        modifier = Modifier
+                                            .width(8.dp)
+                                            .height(
+                                                (if (cf.income > 0)
+                                                    ((cf.income.toDouble() / maxCashFlowValue.toDouble()) * 100).coerceIn(4.0, 100.0)
+                                                else 0.0).dp
+                                            )
+                                            .background(Color(0xFFE0263B), RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                    )
+                                    // Expense bar
+                                    Box(
+                                        modifier = Modifier
+                                            .width(8.dp)
+                                            .height(
+                                                (if (cf.expense > 0)
+                                                    ((cf.expense.toDouble() / maxCashFlowValue.toDouble()) * 100).coerceIn(4.0, 100.0)
+                                                else 0.0).dp
+                                            )
+                                            .background(Color(0xFFFF4655), RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(cf.month, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFB9A3A7))
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(cf.month, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -1816,11 +2000,11 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                 ) {
                     Box(modifier = Modifier.size(10.dp).background(Color(0xFFE0263B)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Inflow", fontSize = 10.sp)
+                    Text("Inflow", fontSize = 10.sp, color = Color(0xFFB9A3A7))
                     Spacer(modifier = Modifier.width(16.dp))
                     Box(modifier = Modifier.size(10.dp).background(Color(0xFFFF4655)))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Outflow", fontSize = 10.sp)
+                    Text("Outflow", fontSize = 10.sp, color = Color(0xFFB9A3A7))
                 }
             }
         }
@@ -1861,7 +2045,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
 // ==========================================
 
 @Composable
-fun SettingsScreen(viewModel: FinanceViewModel) {
+fun SettingsScreen(viewModel: FinanceViewModel, onNavigateToCategories: () -> Unit = {}) {
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
 
@@ -1994,7 +2178,30 @@ fun SettingsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        CategoryManagementCard(viewModel)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onNavigateToCategories),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Category, contentDescription = null, tint = Color(0xFFE0263B))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Categories", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFFF5EAEC))
+                        Text("Manage income & expense tags", fontSize = 11.sp, color = Color(0xFFB9A3A7))
+                    }
+                }
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFFB9A3A7))
+            }
+        }
 
         Button(
             onClick = { viewModel.logout() },
@@ -2008,83 +2215,120 @@ fun SettingsScreen(viewModel: FinanceViewModel) {
     }
 }
 
+private val PRESET_CATEGORY_COLORS = listOf("emerald", "blue", "teal", "orange", "yellow", "slate", "violet", "red", "rose", "pink", "fuchsia", "sky")
+private val PRESET_CATEGORY_ICONS = listOf(
+    "Wallet", "Utensils", "Car", "Home", "Clapperboard", "Zap", "HeartPulse",
+    "ShoppingBag", "Gift", "Plane", "GraduationCap", "Briefcase", "Smartphone",
+    "Dumbbell", "PawPrint", "Music", "Shirt", "Tag", "TrendingUp", "Coins"
+)
+
 @Composable
-private fun CategoryManagementCard(viewModel: FinanceViewModel) {
-    val categories by viewModel.categories.collectAsState()
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
-
-    val presetColors = listOf("emerald", "blue", "teal", "orange", "yellow", "slate", "violet", "red", "rose", "pink", "fuchsia", "sky")
-    val presetIcons = listOf(
-        "Wallet", "Utensils", "Car", "Home", "Clapperboard", "Zap", "HeartPulse",
-        "ShoppingBag", "Gift", "Plane", "GraduationCap", "Briefcase", "Smartphone",
-        "Dumbbell", "PawPrint", "Music", "Shirt", "Tag", "TrendingUp", "Coins"
-    )
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1215))
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
+private fun CategoryGroup(title: String, accent: Color, categories: List<LocalCategory>, viewModel: FinanceViewModel) {
+    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = accent)
+    Spacer(modifier = Modifier.height(8.dp))
+    if (categories.isEmpty()) {
+        Text("No $title categories yet — tap + to add one.", fontSize = 12.sp, color = TextSecondary)
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        categories.forEach { cat ->
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                colors = CardDefaults.cardColors(containerColor = SurfaceColor)
             ) {
-                Text("Categories", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFF5EAEC))
-                IconButton(onClick = { showAddCategoryDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Category", tint = Color(0xFFE0263B))
-                }
-            }
-
-            if (categories.isEmpty()) {
-                Text("No categories yet.", fontSize = 12.sp, color = Color(0xFFB9A3A7))
-            } else {
-                categories.forEach { cat ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(getColorForName(cat.color)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = getIconForName(cat.icon),
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(cat.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFF5EAEC))
-                                Text(cat.type.uppercase(), fontSize = 9.sp, color = Color(0xFFB9A3A7))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(getColorForName(cat.color)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = getIconForName(cat.icon),
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(cat.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                            if (cat.isSystem) {
+                                Text("Built-in", fontSize = 10.sp, color = TextSecondary)
                             }
                         }
-                        if (!cat.isSystem) {
-                            IconButton(onClick = { viewModel.deleteCategory(cat.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = Color(0xFFFF4655))
-                            }
+                    }
+                    if (!cat.isSystem) {
+                        IconButton(onClick = { viewModel.deleteCategory(cat.id) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = DangerColor)
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun CategoriesScreen(viewModel: FinanceViewModel, onNavigateBack: () -> Unit) {
+    val categories by viewModel.categories.collectAsState()
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    val incomeCats = categories.filter { it.type == "income" }
+    val expenseCats = categories.filter { it.type == "expense" }
+
+    Scaffold(
+        containerColor = AppBg,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddCategoryDialog = true },
+                containerColor = AccentColor,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Category")
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(AppBg)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Categories", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
+            }
+            Text(
+                "Income and expense tags used across transactions and store purchases.",
+                fontSize = 12.sp,
+                color = TextSecondary,
+                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+            )
+
+            CategoryGroup("Income", SuccessColor, incomeCats, viewModel)
+            Spacer(modifier = Modifier.height(20.dp))
+            CategoryGroup("Expense", DangerColor, expenseCats, viewModel)
+        }
+    }
 
     if (showAddCategoryDialog) {
         var catName by remember { mutableStateOf("") }
         var catType by remember { mutableStateOf("expense") }
-        var catColor by remember { mutableStateOf(presetColors.first()) }
-        var catIcon by remember { mutableStateOf(presetIcons.first()) }
+        var catColor by remember { mutableStateOf(PRESET_CATEGORY_COLORS.first()) }
+        var catIcon by remember { mutableStateOf(PRESET_CATEGORY_ICONS.first()) }
 
         StandardFormDialog(
             title = "Add Category",
@@ -2116,7 +2360,7 @@ private fun CategoryManagementCard(viewModel: FinanceViewModel) {
             }
             Text("Color", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(presetColors) { c ->
+                items(PRESET_CATEGORY_COLORS) { c ->
                     Box(
                         modifier = Modifier
                             .size(34.dp)
@@ -2138,7 +2382,7 @@ private fun CategoryManagementCard(viewModel: FinanceViewModel) {
             }
             Text("Icon", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(presetIcons) { iconName ->
+                items(PRESET_CATEGORY_ICONS) { iconName ->
                     Box(
                         modifier = Modifier
                             .size(36.dp)

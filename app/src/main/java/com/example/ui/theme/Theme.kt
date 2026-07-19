@@ -11,11 +11,17 @@ private val NoirColorScheme =
     onPrimary = Color.White,
     primaryContainer = NoirPrimaryContainer,
     onPrimaryContainer = NoirOnPrimaryContainer,
-    secondary = NoirTextSecondary,
-    secondaryContainer = NoirSecondaryContainer,
+    secondary = NoirPrimary,
+    // A *selected* chip/option must read as clearly different from an
+    // unselected one. Leaving this at the same tone as the normal surface
+    // (the earlier bug) made selection state on filter chips — e.g. the
+    // lent/borrowed choice in the debt dialog — invisible.
+    secondaryContainer = NoirPrimaryContainer,
+    onSecondaryContainer = NoirOnPrimaryContainer,
     background = NoirBg,
     surface = NoirBg,
     surfaceVariant = NoirSurface,
+    onSurfaceVariant = NoirTextSecondary,
     onBackground = NoirText,
     onSurface = NoirText,
     error = Color(0xFFFF4655),

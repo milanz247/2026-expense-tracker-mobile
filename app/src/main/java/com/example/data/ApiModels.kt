@@ -33,9 +33,10 @@ data class LoginRequest(
 )
 
 @JsonClass(generateAdapter = true)
+// The backend's login response only ever includes name + currency here
+// (see AuthUser in backend/internal/user/dto.go) — no email field.
 data class UserProfile(
     @Json(name = "name") val name: String,
-    @Json(name = "email") val email: String,
     @Json(name = "currency") val currency: String
 )
 

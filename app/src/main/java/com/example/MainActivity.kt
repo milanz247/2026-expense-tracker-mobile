@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
                 var currentScreen by remember { mutableStateOf("login") }
                 var activeTab by remember { mutableIntStateOf(0) } // 0: Dashboard, 1: Ledger, 2: Debts, 3: Store Tabs, 4: Reports, 5: Settings
                 var isNavigatingToSettings by remember { mutableStateOf(false) }
+                var isNavigatingToCategories by remember { mutableStateOf(false) }
 
                 val context = LocalContext.current
 
@@ -101,6 +102,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     is AuthState.Authenticated -> {
+                        val showingSubScreen = isNavigatingToSettings || isNavigatingToCategories
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -137,12 +139,17 @@ class MainActivity : ComponentActivity() {
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             IconButton(
                                                 onClick = {
-                                                    isNavigatingToSettings = !isNavigatingToSettings
+                                                    if (showingSubScreen) {
+                                                        isNavigatingToSettings = false
+                                                        isNavigatingToCategories = false
+                                                    } else {
+                                                        isNavigatingToSettings = true
+                                                    }
                                                 },
                                                 modifier = Modifier.testTag("settings_button")
                                             ) {
                                                 Icon(
-                                                    imageVector = if (isNavigatingToSettings) Icons.Default.Close else Icons.Default.Settings,
+                                                    imageVector = if (showingSubScreen) Icons.Default.Close else Icons.Default.Settings,
                                                     contentDescription = "Settings",
                                                     tint = Color(0xFFB9A3A7)
                                                 )
@@ -152,7 +159,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             bottomBar = {
-                                if (!isNavigatingToSettings) {
+                                if (!showingSubScreen) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -213,8 +220,16 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxSize()
                                     .padding(innerPadding)
                             ) {
-                                if (isNavigatingToSettings) {
-                                    SettingsScreen(viewModel = viewModel)
+                                if (isNavigatingToCategories) {
+                                    CategoriesScreen(
+                                        viewModel = viewModel,
+                                        onNavigateBack = { isNavigatingToCategories = false }
+                                    )
+                                } else if (isNavigatingToSettings) {
+                                    SettingsScreen(
+                                        viewModel = viewModel,
+                                        onNavigateToCategories = { isNavigatingToCategories = true }
+                                    )
                                 } else {
                                     when (activeTab) {
                                         0 -> DashboardScreen(
