@@ -26,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -48,13 +47,7 @@ import com.example.ui.common.formatMoney
 import com.example.ui.common.formatMoneyCompact
 import com.example.ui.common.parseHexColor
 import com.example.ui.theme.GeistMono
-import com.example.ui.theme.PitchBlack
-import com.example.ui.theme.PureWhite
-import com.example.ui.theme.Zinc400
-import com.example.ui.theme.Zinc500
-import com.example.ui.theme.Zinc700
-import com.example.ui.theme.Zinc800
-import com.example.ui.theme.Zinc900
+import com.example.ui.theme.LocalAppColors
 
 @Composable
 fun DashboardScreen(
@@ -63,6 +56,7 @@ fun DashboardScreen(
     onAddTransaction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = LocalAppColors.current
     val userName by viewModel.userName.collectAsState()
     val userCurrency by viewModel.userCurrency.collectAsState()
     val summary by viewModel.summary.collectAsState()
@@ -73,7 +67,7 @@ fun DashboardScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(PitchBlack)
+            .background(colors.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         androidx.compose.foundation.lazy.LazyColumn(
@@ -90,15 +84,15 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(text = "Dashboard", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = PureWhite)
+                        Text(text = "Dashboard", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                         Text(
                             text = if (userName.isBlank()) "Welcome back" else "Welcome back, $userName",
                             fontSize = 13.sp,
-                            color = Zinc500
+                            color = colors.textMuted
                         )
                     }
                     IconButton(onClick = { viewModel.load() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Zinc500)
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = colors.textMuted)
                     }
                 }
             }
@@ -160,7 +154,7 @@ fun DashboardScreen(
                             Text(
                                 text = "See all",
                                 fontSize = 12.sp,
-                                color = Zinc400,
+                                color = colors.accent,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.clickable { onSeeAllTransactions() }
                             )
@@ -181,14 +175,15 @@ fun DashboardScreen(
 
 @Composable
 private fun MetricCard(label: String, metric: MetricWithTrend, currency: String, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
     MatteCard(modifier = modifier, cornerRadius = 20, contentPadding = PaddingValues(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(text = label.uppercase(), fontSize = 10.sp, color = Zinc500, letterSpacing = 1.sp, fontFamily = GeistMono)
+            Text(text = label.uppercase(), fontSize = 10.sp, color = colors.textMuted, letterSpacing = 1.sp, fontFamily = GeistMono)
             Text(
                 text = formatMoneyCompact(metric.amountCents, currency),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = PureWhite,
+                color = colors.onBackground,
                 fontFamily = GeistMono,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -200,13 +195,13 @@ private fun MetricCard(label: String, metric: MetricWithTrend, currency: String,
                     Icon(
                         imageVector = if (positive) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                         contentDescription = null,
-                        tint = if (positive) Color(0xFF22C55E) else Color(0xFFF43F5E),
+                        tint = if (positive) colors.positive else colors.negative,
                         modifier = Modifier.size(12.dp)
                     )
                     Text(
                         text = "${String.format("%.1f", Math.abs(change))}%",
                         fontSize = 11.sp,
-                        color = if (positive) Color(0xFF22C55E) else Color(0xFFF43F5E)
+                        color = if (positive) colors.positive else colors.negative
                     )
                 }
             }
@@ -216,19 +211,20 @@ private fun MetricCard(label: String, metric: MetricWithTrend, currency: String,
 
 @Composable
 private fun WalletChip(account: AccountResponse, currency: String) {
+    val colors = LocalAppColors.current
     Box(
         modifier = Modifier
             .width(140.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Zinc900)
-            .border(1.dp, Zinc800, RoundedCornerShape(18.dp))
+            .background(colors.surfaceVariant)
+            .border(1.dp, colors.outline, RoundedCornerShape(18.dp))
             .padding(14.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = account.name,
                 fontSize = 12.sp,
-                color = Zinc400,
+                color = colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -236,7 +232,7 @@ private fun WalletChip(account: AccountResponse, currency: String) {
                 text = formatMoneyCompact(account.balance, currency),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = PureWhite,
+                color = colors.onBackground,
                 fontFamily = GeistMono
             )
         }
@@ -245,6 +241,7 @@ private fun WalletChip(account: AccountResponse, currency: String) {
 
 @Composable
 private fun CashFlowBarChart(data: List<CashFlowPoint>, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
     val maxValue = remember(data) { (data.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0L).coerceAtLeast(1L) }
     Row(
         modifier = modifier
@@ -270,18 +267,18 @@ private fun CashFlowBarChart(data: List<CashFlowPoint>, modifier: Modifier = Mod
                             .width(6.dp)
                             .fillMaxHeight(fraction = (point.income.toFloat() / maxValue).coerceIn(0.02f, 1f))
                             .clip(RoundedCornerShape(2.dp))
-                            .background(PureWhite)
+                            .background(colors.accent)
                     )
                     Box(
                         modifier = Modifier
                             .width(6.dp)
                             .fillMaxHeight(fraction = (point.expense.toFloat() / maxValue).coerceIn(0.02f, 1f))
                             .clip(RoundedCornerShape(2.dp))
-                            .background(Zinc700)
+                            .background(colors.outline)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(text = point.month, fontSize = 10.sp, color = Zinc500, fontFamily = GeistMono)
+                Text(text = point.month, fontSize = 10.sp, color = colors.textMuted, fontFamily = GeistMono)
             }
         }
     }
@@ -289,6 +286,7 @@ private fun CashFlowBarChart(data: List<CashFlowPoint>, modifier: Modifier = Mod
 
 @Composable
 private fun CategoryBreakdownRow(data: List<CategoryBreakdownItem>) {
+    val colors = LocalAppColors.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         Canvas(modifier = Modifier.size(96.dp)) {
             var startAngle = -90f
@@ -319,7 +317,7 @@ private fun CategoryBreakdownRow(data: List<CategoryBreakdownItem>) {
                     Text(
                         text = item.categoryName,
                         fontSize = 12.sp,
-                        color = Zinc400,
+                        color = colors.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -327,7 +325,7 @@ private fun CategoryBreakdownRow(data: List<CategoryBreakdownItem>) {
                     Text(
                         text = "${String.format("%.0f", item.percentage)}%",
                         fontSize = 12.sp,
-                        color = PureWhite,
+                        color = colors.onBackground,
                         fontFamily = GeistMono
                     )
                 }
@@ -338,12 +336,13 @@ private fun CategoryBreakdownRow(data: List<CategoryBreakdownItem>) {
 
 @Composable
 private fun RecentActivityRow(transaction: RecentTransaction, currency: String) {
+    val colors = LocalAppColors.current
     val isExpense = transaction.type == TXN_TYPE_EXPENSE
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Zinc900)
+            .background(colors.surfaceVariant)
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -353,28 +352,28 @@ private fun RecentActivityRow(transaction: RecentTransaction, currency: String) 
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(transaction.category?.color?.let { parseHexColor(it).copy(alpha = 0.2f) } ?: Zinc800),
+                    .background(transaction.category?.color?.let { parseHexColor(it).copy(alpha = 0.2f) } ?: colors.outline),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
                         .size(10.dp)
                         .clip(CircleShape)
-                        .background(transaction.category?.color?.let { parseHexColor(it) } ?: Zinc500)
+                        .background(transaction.category?.color?.let { parseHexColor(it) } ?: colors.textMuted)
                 )
             }
             Column {
                 Text(
                     text = transaction.description.ifBlank { transaction.category?.name ?: transaction.type },
                     fontSize = 14.sp,
-                    color = PureWhite,
+                    color = colors.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = transaction.category?.name ?: transaction.type,
                     fontSize = 11.sp,
-                    color = Zinc500
+                    color = colors.textMuted
                 )
             }
         }
@@ -382,7 +381,7 @@ private fun RecentActivityRow(transaction: RecentTransaction, currency: String) 
             text = (if (isExpense) "-" else "+") + formatMoney(transaction.amount, currency),
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isExpense) Zinc400 else PureWhite,
+            color = if (isExpense) colors.textSecondary else colors.positive,
             fontFamily = GeistMono
         )
     }

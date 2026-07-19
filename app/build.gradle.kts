@@ -22,10 +22,9 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    // Android emulator's alias for the host machine's localhost. Point this at
-    // your LAN IP (e.g. "http://192.168.1.20:8080/api/v1/") to run against a
-    // physical device instead of the emulator.
-    buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/api/v1/\"")
+    // Point this at your backend's LAN IP to run against a physical device
+    // (10.0.2.2 is only reachable from the Android emulator).
+    buildConfigField("String", "API_BASE_URL", "\"http://10.197.154.241:8080/api/v1/\"")
   }
 
   signingConfigs {

@@ -29,12 +29,11 @@ import com.example.network.NetworkClient
 import com.example.ui.AppViewModelFactory
 import com.example.ui.auth.AuthScreen
 import com.example.ui.auth.AuthViewModel
+import com.example.ui.theme.LocalAppColors
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.theme.PitchBlack
-import com.example.ui.theme.PureWhite
-import com.example.ui.theme.Zinc800
-import com.example.ui.theme.Zinc900
+import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 
 private const val ROUTE_AUTH = "auth"
 private const val ROUTE_APP = "app"
@@ -50,7 +49,10 @@ class MainActivity : ComponentActivity() {
         val viewModelFactory = AppViewModelFactory(apiService, dataStoreManager)
 
         setContent {
-            MyApplicationTheme {
+            val themeMode by dataStoreManager.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val scope = rememberCoroutineScope()
+
+            MyApplicationTheme(themeMode = themeMode) {
                 var startDestination by remember { mutableStateOf<String?>(null) }
 
                 LaunchedEffect(key1 = Unit) {
@@ -60,23 +62,24 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     if (startDestination == null) {
+                        val colors = LocalAppColors.current
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(PitchBlack),
+                                .background(colors.background),
                             contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(64.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(Zinc900)
-                                    .border(1.dp, Zinc800, RoundedCornerShape(16.dp)),
+                                    .background(colors.surfaceVariant)
+                                    .border(1.dp, colors.outline, RoundedCornerShape(16.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "F",
-                                    color = PureWhite,
+                                    color = colors.accent,
                                     fontSize = 32.sp,
                                     fontWeight = FontWeight.ExtraBold
                                 )
@@ -100,6 +103,10 @@ class MainActivity : ComponentActivity() {
                                 AppShell(
                                     apiService = apiService,
                                     dataStoreManager = dataStoreManager,
+                                    themeMode = themeMode,
+                                    onThemeModeChange = { mode ->
+                                        scope.launch { dataStoreManager.saveThemeMode(mode) }
+                                    },
                                     onLoggedOut = {
                                         navController.navigate(ROUTE_AUTH) {
                                             popUpTo(ROUTE_APP) { inclusive = true }

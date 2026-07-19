@@ -12,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -27,11 +26,7 @@ import com.example.ui.common.SectionLabel
 import com.example.ui.common.formatDisplayDate
 import com.example.ui.common.formatMoney
 import com.example.ui.theme.GeistMono
-import com.example.ui.theme.PitchBlack
-import com.example.ui.theme.PureWhite
-import com.example.ui.theme.Zinc400
-import com.example.ui.theme.Zinc500
-import com.example.ui.theme.Zinc900
+import com.example.ui.theme.LocalAppColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +36,7 @@ fun StoreDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = LocalAppColors.current
     LaunchedEffect(creditorId) { viewModel.ensureDetailLoaded(creditorId) }
 
     val creditor by viewModel.detailCreditor.collectAsState()
@@ -52,7 +48,7 @@ fun StoreDetailScreen(
     val showPurchaseForm by viewModel.showPurchaseForm.collectAsState()
     val showSettlementForm by viewModel.showSettlementForm.collectAsState()
 
-    Box(modifier = modifier.fillMaxSize().background(PitchBlack).windowInsetsPadding(WindowInsets.safeDrawing)) {
+    Box(modifier = modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -61,13 +57,13 @@ fun StoreDetailScreen(
             item {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = PureWhite)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = colors.onBackground)
                     }
                     Text(
                         text = creditor?.name ?: "Shop",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = PureWhite,
+                        color = colors.onBackground,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -77,8 +73,8 @@ fun StoreDetailScreen(
                 item {
                     MatteCard {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(text = "OUTSTANDING", fontSize = 10.sp, color = Zinc500, letterSpacing = 1.sp, fontFamily = GeistMono)
-                            Text(text = formatMoney(it.outstandingDebt, currency), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = PureWhite, fontFamily = GeistMono)
+                            Text(text = "OUTSTANDING", fontSize = 10.sp, color = colors.textMuted, letterSpacing = 1.sp, fontFamily = GeistMono)
+                            Text(text = formatMoney(it.outstandingDebt, currency), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, fontFamily = GeistMono)
                         }
                     }
                 }
@@ -88,13 +84,13 @@ fun StoreDetailScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         onClick = { viewModel.openPurchaseForm() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Zinc900, contentColor = PureWhite),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.surfaceVariant, contentColor = colors.onBackground),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("Record Purchase", fontSize = 12.sp) }
                     Button(
                         onClick = { viewModel.openSettlementForm() },
-                        colors = ButtonDefaults.buttonColors(containerColor = PureWhite, contentColor = PitchBlack),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.onAccent),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("Settle Up", fontSize = 12.sp) }
@@ -135,32 +131,35 @@ fun StoreDetailScreen(
 
 @Composable
 private fun PurchaseRow(purchase: PurchaseResponse, currency: String) {
+    val colors = LocalAppColors.current
     Row(
-        modifier = Modifier.fillMaxWidth().background(Zinc900, RoundedCornerShape(14.dp)).padding(12.dp),
+        modifier = Modifier.fillMaxWidth().background(colors.surfaceVariant, RoundedCornerShape(14.dp)).padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            Text(text = purchase.description.ifBlank { "Purchase" }, fontSize = 13.sp, color = PureWhite)
-            Text(text = formatDisplayDate(purchase.date), fontSize = 11.sp, color = Zinc500)
+            Text(text = purchase.description.ifBlank { "Purchase" }, fontSize = 13.sp, color = colors.onBackground)
+            Text(text = formatDisplayDate(purchase.date), fontSize = 11.sp, color = colors.textMuted)
         }
-        Text(text = "+${formatMoney(purchase.amount + purchase.fee, currency)}", fontSize = 13.sp, color = Zinc400, fontFamily = GeistMono)
+        Text(text = "+${formatMoney(purchase.amount + purchase.fee, currency)}", fontSize = 13.sp, color = colors.textSecondary, fontFamily = GeistMono)
     }
 }
 
 @Composable
 private fun SettlementRow(settlement: SettlementResponse, currency: String) {
+    val colors = LocalAppColors.current
     Row(
-        modifier = Modifier.fillMaxWidth().background(Zinc900, RoundedCornerShape(14.dp)).padding(12.dp),
+        modifier = Modifier.fillMaxWidth().background(colors.surfaceVariant, RoundedCornerShape(14.dp)).padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = formatDisplayDate(settlement.date), fontSize = 12.sp, color = Zinc500)
-        Text(text = "-${formatMoney(settlement.amountPaid, currency)}", fontSize = 13.sp, color = PureWhite, fontFamily = GeistMono)
+        Text(text = formatDisplayDate(settlement.date), fontSize = 12.sp, color = colors.textMuted)
+        Text(text = "-${formatMoney(settlement.amountPaid, currency)}", fontSize = 13.sp, color = colors.onBackground, fontFamily = GeistMono)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecordPurchaseDialog(viewModel: StoreTabsViewModel) {
+    val colors = LocalAppColors.current
     val amount by viewModel.purchaseAmount.collectAsState()
     val categoryId by viewModel.purchaseCategoryId.collectAsState()
     val description by viewModel.purchaseDescription.collectAsState()
@@ -171,9 +170,9 @@ private fun RecordPurchaseDialog(viewModel: StoreTabsViewModel) {
 
     AlertDialog(
         onDismissRequest = { if (!isSubmitting) viewModel.dismissPurchaseForm() },
-        containerColor = com.example.ui.theme.Zinc950,
-        titleContentColor = PureWhite,
-        textContentColor = Zinc400,
+        containerColor = colors.surface,
+        titleContentColor = colors.onBackground,
+        textContentColor = colors.textSecondary,
         title = { Text("Record Purchase") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -183,7 +182,7 @@ private fun RecordPurchaseDialog(viewModel: StoreTabsViewModel) {
                     label = { Text("Amount") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = fieldColors(),
+                    colors = fieldColors(colors),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -194,13 +193,13 @@ private fun RecordPurchaseDialog(viewModel: StoreTabsViewModel) {
                         readOnly = true,
                         label = { Text("Category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
-                        colors = fieldColors(),
+                        colors = fieldColors(colors),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
-                    ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }, containerColor = Zinc900) {
+                    ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }, containerColor = colors.surfaceVariant) {
                         categories.forEach { cat ->
-                            DropdownMenuItem(text = { Text(cat.name, color = PureWhite) }, onClick = { viewModel.onPurchaseCategorySelected(cat.id); categoryMenuExpanded = false })
+                            DropdownMenuItem(text = { Text(cat.name, color = colors.onBackground) }, onClick = { viewModel.onPurchaseCategorySelected(cat.id); categoryMenuExpanded = false })
                         }
                     }
                 }
@@ -209,28 +208,29 @@ private fun RecordPurchaseDialog(viewModel: StoreTabsViewModel) {
                     onValueChange = viewModel::onPurchaseDescriptionChanged,
                     label = { Text("Description") },
                     singleLine = true,
-                    colors = fieldColors(),
+                    colors = fieldColors(colors),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (formError != null) {
-                    Text(text = formError!!, color = Color.Red, fontSize = 12.sp)
+                    Text(text = formError!!, color = colors.error, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = { viewModel.submitPurchase() }, enabled = !isSubmitting) {
-                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = PureWhite)
-                else Text("Save", color = PureWhite)
+                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = colors.accent)
+                else Text("Save", color = colors.accent)
             }
         },
-        dismissButton = { TextButton(onClick = { viewModel.dismissPurchaseForm() }, enabled = !isSubmitting) { Text("Cancel", color = Zinc500) } }
+        dismissButton = { TextButton(onClick = { viewModel.dismissPurchaseForm() }, enabled = !isSubmitting) { Text("Cancel", color = colors.textMuted) } }
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecordSettlementDialog(viewModel: StoreTabsViewModel, currency: String) {
+    val colors = LocalAppColors.current
     val amount by viewModel.settlementAmount.collectAsState()
     val accountId by viewModel.settlementAccountId.collectAsState()
     val formError by viewModel.formError.collectAsState()
@@ -241,20 +241,20 @@ private fun RecordSettlementDialog(viewModel: StoreTabsViewModel, currency: Stri
 
     AlertDialog(
         onDismissRequest = { if (!isSubmitting) viewModel.dismissSettlementForm() },
-        containerColor = com.example.ui.theme.Zinc950,
-        titleContentColor = PureWhite,
-        textContentColor = Zinc400,
+        containerColor = colors.surface,
+        titleContentColor = colors.onBackground,
+        textContentColor = colors.textSecondary,
         title = { Text("Settle Up") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(text = "Outstanding: ${formatMoney(creditor?.outstandingDebt ?: 0L, currency)}", fontSize = 13.sp, color = Zinc400)
+                Text(text = "Outstanding: ${formatMoney(creditor?.outstandingDebt ?: 0L, currency)}", fontSize = 13.sp, color = colors.textSecondary)
                 OutlinedTextField(
                     value = amount,
                     onValueChange = viewModel::onSettlementAmountChanged,
                     label = { Text("Amount to Pay") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = fieldColors(),
+                    colors = fieldColors(colors),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -265,27 +265,27 @@ private fun RecordSettlementDialog(viewModel: StoreTabsViewModel, currency: Stri
                         readOnly = true,
                         label = { Text("Pay From") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountMenuExpanded) },
-                        colors = fieldColors(),
+                        colors = fieldColors(colors),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
-                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }, containerColor = Zinc900) {
+                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }, containerColor = colors.surfaceVariant) {
                         accounts.forEach { acc ->
-                            DropdownMenuItem(text = { Text(acc.name, color = PureWhite) }, onClick = { viewModel.onSettlementAccountSelected(acc.id); accountMenuExpanded = false })
+                            DropdownMenuItem(text = { Text(acc.name, color = colors.onBackground) }, onClick = { viewModel.onSettlementAccountSelected(acc.id); accountMenuExpanded = false })
                         }
                     }
                 }
                 if (formError != null) {
-                    Text(text = formError!!, color = Color.Red, fontSize = 12.sp)
+                    Text(text = formError!!, color = colors.error, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = { viewModel.submitSettlement() }, enabled = !isSubmitting) {
-                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = PureWhite)
-                else Text("Confirm", color = PureWhite)
+                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = colors.accent)
+                else Text("Confirm", color = colors.accent)
             }
         },
-        dismissButton = { TextButton(onClick = { viewModel.dismissSettlementForm() }, enabled = !isSubmitting) { Text("Cancel", color = Zinc500) } }
+        dismissButton = { TextButton(onClick = { viewModel.dismissSettlementForm() }, enabled = !isSubmitting) { Text("Cancel", color = colors.textMuted) } }
     )
 }

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -17,6 +18,19 @@ class DataStoreManager(private val context: Context) {
         val USER_NAME_KEY = stringPreferencesKey("user_name")
         val USER_EMAIL_KEY = stringPreferencesKey("user_email")
         val USER_CURRENCY_KEY = stringPreferencesKey("user_currency")
+        val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
+    }
+
+    val themeModeFlow: Flow<ThemeMode> = context.dataStore.data.map { preferences ->
+        preferences[THEME_MODE_KEY]?.let { saved ->
+            runCatching { ThemeMode.valueOf(saved) }.getOrNull()
+        } ?: ThemeMode.SYSTEM
+    }
+
+    suspend fun saveThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { preferences ->
+            preferences[THEME_MODE_KEY] = mode.name
+        }
     }
 
     val tokenFlow: Flow<String?> = context.dataStore.data.map { preferences ->

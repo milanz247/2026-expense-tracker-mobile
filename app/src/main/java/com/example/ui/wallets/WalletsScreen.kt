@@ -28,21 +28,16 @@ import com.example.ui.common.EmptyState
 import com.example.ui.common.ErrorBanner
 import com.example.ui.common.FullScreenLoader
 import com.example.ui.common.formatMoney
+import com.example.ui.theme.AppColors
 import com.example.ui.theme.GeistMono
-import com.example.ui.theme.PitchBlack
-import com.example.ui.theme.PureWhite
-import com.example.ui.theme.Zinc400
-import com.example.ui.theme.Zinc500
-import com.example.ui.theme.Zinc800
-import com.example.ui.theme.Zinc900
-import com.example.ui.theme.Zinc950
+import com.example.ui.theme.LocalAppColors
 
-private val fieldColors: @Composable () -> TextFieldColors = {
+private val fieldColors: @Composable (AppColors) -> TextFieldColors = { colors ->
     OutlinedTextFieldDefaults.colors(
-        focusedTextColor = PureWhite, unfocusedTextColor = PureWhite,
-        focusedBorderColor = PureWhite, unfocusedBorderColor = Zinc800,
-        focusedLabelColor = PureWhite, unfocusedLabelColor = Zinc400,
-        cursorColor = PureWhite
+        focusedTextColor = colors.onBackground, unfocusedTextColor = colors.onBackground,
+        focusedBorderColor = colors.accent, unfocusedBorderColor = colors.outline,
+        focusedLabelColor = colors.accent, unfocusedLabelColor = colors.textSecondary,
+        cursorColor = colors.accent
     )
 }
 
@@ -53,6 +48,7 @@ fun WalletsScreen(
     onWalletClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = LocalAppColors.current
     val accounts by viewModel.accounts.collectAsState()
     val currency by viewModel.userCurrency.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -60,7 +56,7 @@ fun WalletsScreen(
     val showForm by viewModel.showForm.collectAsState()
     val pendingArchive by viewModel.accountPendingArchive.collectAsState()
 
-    Box(modifier = modifier.fillMaxSize().background(PitchBlack).windowInsetsPadding(WindowInsets.safeDrawing)) {
+    Box(modifier = modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -72,9 +68,9 @@ fun WalletsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Wallets", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = PureWhite)
+                    Text(text = "Wallets", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                     IconButton(onClick = { viewModel.openAddForm() }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add wallet", tint = PureWhite)
+                        Icon(Icons.Default.Add, contentDescription = "Add wallet", tint = colors.accent)
                     }
                 }
             }
@@ -108,16 +104,16 @@ fun WalletsScreen(
     pendingArchive?.let { account ->
         AlertDialog(
             onDismissRequest = { viewModel.cancelArchive() },
-            containerColor = Zinc950,
-            titleContentColor = PureWhite,
-            textContentColor = Zinc400,
+            containerColor = colors.surface,
+            titleContentColor = colors.onBackground,
+            textContentColor = colors.textSecondary,
             title = { Text("Archive \"${account.name}\"?") },
             text = { Text("This hides the wallet from your active list. Its transaction history is kept.") },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmArchive() }) { Text("Archive", color = PureWhite) }
+                TextButton(onClick = { viewModel.confirmArchive() }) { Text("Archive", color = colors.accent) }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.cancelArchive() }) { Text("Cancel", color = Zinc500) }
+                TextButton(onClick = { viewModel.cancelArchive() }) { Text("Cancel", color = colors.textMuted) }
             }
         )
     }
@@ -131,13 +127,14 @@ private fun WalletCard(
     onEdit: () -> Unit,
     onArchive: () -> Unit
 ) {
+    val colors = LocalAppColors.current
     var menuExpanded by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Zinc950)
-            .border(1.dp, Zinc800, RoundedCornerShape(22.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.outline, RoundedCornerShape(22.dp))
             .clickable { onClick() }
             .padding(18.dp)
     ) {
@@ -147,38 +144,38 @@ private fun WalletCard(
                     text = account.name,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
-                    color = PureWhite,
+                    color = colors.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = account.type.replace('_', ' ').uppercase(),
                     fontSize = 10.sp,
-                    color = Zinc500,
+                    color = colors.textMuted,
                     letterSpacing = 1.sp
                 )
                 Text(
                     text = formatMoney(account.balance, currency),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = PureWhite,
+                    color = colors.onBackground,
                     fontFamily = GeistMono
                 )
                 if (account.type == ACCOUNT_TYPE_CREDIT_CARD && account.creditLimit != null) {
                     Text(
                         text = "Limit ${formatMoney(account.creditLimit, currency)}",
                         fontSize = 11.sp,
-                        color = Zinc500
+                        color = colors.textMuted
                     )
                 }
             }
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Wallet options", tint = Zinc500)
+                    Icon(Icons.Default.MoreVert, contentDescription = "Wallet options", tint = colors.textMuted)
                 }
-                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, containerColor = Zinc900) {
-                    DropdownMenuItem(text = { Text("Edit", color = PureWhite) }, onClick = { menuExpanded = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Archive", color = PureWhite) }, onClick = { menuExpanded = false; onArchive() })
+                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }, containerColor = colors.surfaceVariant) {
+                    DropdownMenuItem(text = { Text("Edit", color = colors.onBackground) }, onClick = { menuExpanded = false; onEdit() })
+                    DropdownMenuItem(text = { Text("Archive", color = colors.onBackground) }, onClick = { menuExpanded = false; onArchive() })
                 }
             }
         }
@@ -188,6 +185,7 @@ private fun WalletCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WalletFormDialog(viewModel: WalletsViewModel) {
+    val colors = LocalAppColors.current
     val name by viewModel.formName.collectAsState()
     val type by viewModel.formType.collectAsState()
     val initialBalance by viewModel.formInitialBalance.collectAsState()
@@ -201,9 +199,9 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
 
     AlertDialog(
         onDismissRequest = { if (!isSubmitting) viewModel.dismissForm() },
-        containerColor = Zinc950,
-        titleContentColor = PureWhite,
-        textContentColor = Zinc400,
+        containerColor = colors.surface,
+        titleContentColor = colors.onBackground,
+        textContentColor = colors.textSecondary,
         title = { Text(if (isCreate) "Add Wallet" else "Edit Wallet") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -212,7 +210,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                     onValueChange = viewModel::onNameChanged,
                     label = { Text("Name") },
                     singleLine = true,
-                    colors = fieldColors(),
+                    colors = fieldColors(colors),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -224,14 +222,14 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                         readOnly = true,
                         label = { Text("Type") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded) },
-                        colors = fieldColors(),
+                        colors = fieldColors(colors),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
-                    ExposedDropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }, containerColor = Zinc900) {
+                    ExposedDropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }, containerColor = colors.surfaceVariant) {
                         ACCOUNT_TYPES.forEach { option ->
                             DropdownMenuItem(
-                                text = { Text(option.replace('_', ' ').replaceFirstChar { it.uppercase() }, color = PureWhite) },
+                                text = { Text(option.replace('_', ' ').replaceFirstChar { it.uppercase() }, color = colors.onBackground) },
                                 onClick = { viewModel.onTypeSelected(option); typeMenuExpanded = false }
                             )
                         }
@@ -245,7 +243,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                         label = { Text("Starting Balance") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        colors = fieldColors(),
+                        colors = fieldColors(colors),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -256,7 +254,7 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                             label = { Text("Credit Limit") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            colors = fieldColors(),
+                            colors = fieldColors(colors),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -264,22 +262,22 @@ private fun WalletFormDialog(viewModel: WalletsViewModel) {
                 }
 
                 if (formError != null) {
-                    Text(text = formError!!, color = androidx.compose.ui.graphics.Color.Red, fontSize = 12.sp)
+                    Text(text = formError!!, color = colors.error, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = { viewModel.submitForm() }, enabled = !isSubmitting) {
                 if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = PureWhite)
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = colors.accent)
                 } else {
-                    Text(if (isCreate) "Create" else "Save", color = PureWhite)
+                    Text(if (isCreate) "Create" else "Save", color = colors.accent)
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = { viewModel.dismissForm() }, enabled = !isSubmitting) {
-                Text("Cancel", color = Zinc500)
+                Text("Cancel", color = colors.textMuted)
             }
         }
     )

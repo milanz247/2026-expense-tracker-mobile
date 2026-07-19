@@ -1,43 +1,86 @@
 package com.example.ui.theme
 
-import android.os.Build
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
-private val MonochromaticColorScheme = darkColorScheme(
-  primary = PureWhite,
-  onPrimary = PitchBlack,
-  secondary = Zinc400,
-  onSecondary = PureWhite,
-  tertiary = Zinc600,
-  onTertiary = PureWhite,
-  background = PitchBlack,
-  onBackground = PureWhite,
-  surface = Zinc900,
-  onSurface = PureWhite,
-  surfaceVariant = Zinc950,
-  onSurfaceVariant = Zinc300,
-  outline = Zinc700,
-  outlineVariant = Zinc800
-)
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** Resolves the user's theme preference against the current system setting. */
+@Composable
+fun resolveDarkTheme(themeMode: ThemeMode): Boolean {
+    val systemDark = isSystemInDarkTheme()
+    return when (themeMode) {
+        ThemeMode.SYSTEM -> systemDark
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+}
+
+private fun materialScheme(colors: AppColors, dark: Boolean) = if (dark) {
+    darkColorScheme(
+        primary = colors.accent,
+        onPrimary = colors.onAccent,
+        secondary = colors.accent,
+        onSecondary = colors.onAccent,
+        background = colors.background,
+        onBackground = colors.onBackground,
+        surface = colors.surface,
+        onSurface = colors.onBackground,
+        surfaceVariant = colors.surfaceVariant,
+        onSurfaceVariant = colors.textSecondary,
+        outline = colors.outline,
+        outlineVariant = colors.outline,
+        error = colors.error,
+    )
+} else {
+    lightColorScheme(
+        primary = colors.accent,
+        onPrimary = colors.onAccent,
+        secondary = colors.accent,
+        onSecondary = colors.onAccent,
+        background = colors.background,
+        onBackground = colors.onBackground,
+        surface = colors.surface,
+        onSurface = colors.onBackground,
+        surfaceVariant = colors.surfaceVariant,
+        onSurfaceVariant = colors.textSecondary,
+        outline = colors.outline,
+        outlineVariant = colors.outline,
+        error = colors.error,
+    )
+}
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = true, // Force premium dark mode by default for Apple/Linear matte black aesthetic
-  dynamicColor: Boolean = false, // Disable dynamic colors to keep monochromatic brand styling
-  content: @Composable () -> Unit,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    content: @Composable () -> Unit,
 ) {
-  val colorScheme = MonochromaticColorScheme
+    val darkTheme = resolveDarkTheme(themeMode)
+    val appColors = if (darkTheme) DarkAppColors else LightAppColors
 
-  MaterialTheme(
-    colorScheme = colorScheme,
-    typography = Typography,
-    content = content
-  )
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
+
+    CompositionLocalProvider(LocalAppColors provides appColors) {
+        MaterialTheme(
+            colorScheme = materialScheme(appColors, darkTheme),
+            typography = Typography,
+            content = content
+        )
+    }
 }

@@ -1,5 +1,9 @@
 package com.example.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -7,10 +11,12 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Store
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemColors
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -37,10 +43,8 @@ import com.example.ui.profile.ProfileViewModel
 import com.example.ui.storetabs.StoreDetailScreen
 import com.example.ui.storetabs.StoreTabsScreen
 import com.example.ui.storetabs.StoreTabsViewModel
-import com.example.ui.theme.PitchBlack
-import com.example.ui.theme.PureWhite
-import com.example.ui.theme.Zinc500
-import com.example.ui.theme.Zinc950
+import com.example.ui.theme.LocalAppColors
+import com.example.ui.theme.ThemeMode
 import com.example.ui.transactions.TransactionsScreen
 import com.example.ui.transactions.TransactionsViewModel
 import com.example.ui.wallets.WalletsScreen
@@ -73,20 +77,23 @@ private val bottomItems = listOf(
 fun AppShell(
     apiService: ApiService,
     dataStoreManager: DataStoreManager,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     onLoggedOut: () -> Unit
 ) {
     val navController = rememberNavController()
     val factory = AppViewModelFactory(apiService, dataStoreManager)
+    val colors = LocalAppColors.current
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showBottomBar = bottomItems.any { it.route == currentRoute }
 
     Scaffold(
-        containerColor = PitchBlack,
+        containerColor = colors.background,
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = Zinc950) {
+                NavigationBar(containerColor = colors.surface) {
                     bottomItems.forEach { item ->
                         val selected = currentRoute == item.route
                         NavigationBarItem(
@@ -98,9 +105,15 @@ fun AppShell(
                                     restoreState = true
                                 }
                             },
-                            icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.label) },
-                            label = { androidx.compose.material3.Text(item.label) },
-                            colors = NavigationBarItemDefaults(),
+                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = colors.accent,
+                                selectedTextColor = colors.accent,
+                                indicatorColor = colors.surfaceVariant,
+                                unselectedIconColor = colors.textMuted,
+                                unselectedTextColor = colors.textMuted
+                            ),
                         )
                     }
                 }
@@ -110,7 +123,11 @@ fun AppShell(
         NavHost(
             navController = navController,
             startDestination = Routes.DASHBOARD,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) + slideInVertically(initialOffsetY = { it / 24 }) },
+            exitTransition = { fadeOut(animationSpec = androidx.compose.animation.core.tween(150)) },
+            popEnterTransition = { fadeIn(animationSpec = androidx.compose.animation.core.tween(220)) },
+            popExitTransition = { fadeOut(animationSpec = androidx.compose.animation.core.tween(150)) + slideOutVertically(targetOffsetY = { it / 24 }) }
         ) {
             composable(Routes.DASHBOARD) {
                 val vm: DashboardViewModel = viewModel(factory = factory)
@@ -174,6 +191,8 @@ fun AppShell(
                 val vm: ProfileViewModel = viewModel(factory = factory)
                 ProfileScreen(
                     viewModel = vm,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     onManageCategories = { navController.navigate(Routes.CATEGORIES) },
                     onLoggedOut = onLoggedOut
                 )
@@ -181,13 +200,3 @@ fun AppShell(
         }
     }
 }
-
-@Composable
-private fun NavigationBarItemDefaults(): NavigationBarItemColors =
-    androidx.compose.material3.NavigationBarItemDefaults.colors(
-        selectedIconColor = PitchBlack,
-        selectedTextColor = PureWhite,
-        indicatorColor = PureWhite,
-        unselectedIconColor = Zinc500,
-        unselectedTextColor = Zinc500
-    )
